@@ -36,8 +36,8 @@ storybook-static
 supabase/migrations/fresh_dump.sql
 supabase/migrations/clean_schema_v*.sql
 test-results/
-.agent/
 playwright-report/
 
 #Documentation
 /docs/
+.agent/

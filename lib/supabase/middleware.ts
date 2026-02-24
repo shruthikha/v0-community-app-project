@@ -29,6 +29,14 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
+  // Skip middleware entirely for auth exchange paths (e.g. /auth/confirm/[slug]).
+  // The route handler manages its own session cookies. If the middleware calls
+  // getUser() here, it can refresh a stale session and overwrite the Set-Cookie
+  // headers the route handler sets for the new recovery session.
+  if (request.nextUrl.pathname.startsWith("/auth/")) {
+    return supabaseResponse
+  }
+
   // This is critical for SSR - it refreshes the auth token
   // If it fails, we still return the response to allow the app to continue
   try {
@@ -37,11 +45,15 @@ export async function updateSession(request: NextRequest) {
     // Issue #77: Automatic Logout Logic
     // Only enforce if user is logged in and NOT on a public route (already filtered by matcher but double checking good practice)
     if (user && !error) {
+      // Skip timeout enforcement for password recovery paths
+      const isRecoveryPath = request.nextUrl.pathname.includes("/update-password") ||
+        request.nextUrl.pathname.includes("/forgot-password")
+
       const rememberMe = request.cookies.get("remember-me")
       const lastActive = request.cookies.get("last-active")
 
-      // If "Remember Me" is NOT present, enforce strict timeout
-      if (!rememberMe) {
+      // If "Remember Me" is NOT present, enforce strict timeout (but NOT for recovery paths)
+      if (!rememberMe && !isRecoveryPath) {
         const now = Date.now()
         const lastActiveTime = lastActive ? parseInt(lastActive.value, 10) : 0
         const TWO_HOURS_MS = 2 * 60 * 60 * 1000

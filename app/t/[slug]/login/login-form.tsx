@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import Image from "next/image"
 import { Eye, EyeOff, Mail } from "lucide-react"
 import { motion, useMotionTemplate, useMotionValue } from "motion/react"
@@ -24,6 +25,7 @@ interface TenantLoginFormProps {
     name: string
     slug: string
   }
+  initialError?: string
 }
 
 function ResponsiveLoginCard({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -65,13 +67,13 @@ function ResponsiveLoginCard({ children, className }: { children: React.ReactNod
   )
 }
 
-export function TenantLoginForm({ tenant }: TenantLoginFormProps) {
+export function TenantLoginForm({ tenant, initialError }: TenantLoginFormProps) {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState(initialError || "")
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -254,13 +256,19 @@ export function TenantLoginForm({ tenant }: TenantLoginFormProps) {
           </Button>
         </form>
 
-        <div className="mt-8 text-center text-sm">
-          <p className="text-mist-gray">
-            New here?{" "}
-            <a href="#" className="text-forest-canopy hover:underline font-medium">
-              Ask your admin for an invite
-            </a>
-          </p>
+        <div className="mt-8 flex flex-col items-center justify-center space-y-3 text-sm">
+          <Link
+            href={`/t/${tenant.slug}/request-access`}
+            className="text-forest-canopy hover:text-forest-deep hover:underline font-medium transition-colors"
+          >
+            Request access to this community
+          </Link>
+          <Link
+            href={`/t/${tenant.slug}/forgot-password`}
+            className="text-mist-gray hover:text-earth-soil hover:underline transition-colors"
+          >
+            Forgot your password?
+          </Link>
         </div>
       </div>
     </ResponsiveLoginCard>
