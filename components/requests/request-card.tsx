@@ -20,6 +20,7 @@ const requestTypeLabels: Record<string, string> = {
     question: "Question",
     complaint: "Complaint",
     safety: "Safety Issue",
+    account_access: "Account Access",
     other: "Other",
 }
 
@@ -37,6 +38,7 @@ export function RequestCard({ request, onClick }: RequestCardProps) {
         question: '❓',
         complaint: '📢',
         safety: '🛡️',
+        account_access: '🔑',
         other: '📝',
     }[request.request_type] || '📝'
 

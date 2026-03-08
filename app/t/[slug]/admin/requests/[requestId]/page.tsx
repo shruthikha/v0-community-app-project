@@ -11,11 +11,12 @@ import { formatDate } from "date-fns"
 import { RequestStatusBadge } from "@/components/requests/request-status-badge"
 import { RequestPriorityBadge } from "@/components/requests/request-priority-badge"
 import { RequestTypeIcon } from "@/components/requests/request-type-icon"
-import { AdminReplyDialog } from "@/components/requests/admin-reply-dialog"
 import { MarkInProgressDialog } from "@/components/requests/mark-in-progress-dialog"
 import { MarkResolvedDialog } from "@/components/requests/mark-resolved-dialog"
 import { MarkRejectedDialog } from "@/components/requests/mark-rejected-dialog"
+import { ReopenRequestDialog } from "@/components/requests/reopen-request-dialog"
 import { getRequestById } from "@/app/actions/resident-requests"
+import { RequestComments } from "@/components/requests/RequestComments"
 
 export default async function AdminRequestDetailPage({
   params,
@@ -115,6 +116,14 @@ export default async function AdminRequestDetailPage({
               tenantSlug={slug}
             />
           )}
+          {(request.status === 'resolved' || request.status === 'rejected') && (
+            <ReopenRequestDialog
+              requestId={request.id}
+              requestTitle={request.title}
+              tenantId={tenant.id}
+              tenantSlug={slug}
+            />
+          )}
         </div>
       </div>
 
@@ -170,22 +179,7 @@ export default async function AdminRequestDetailPage({
               </div>
             )}
 
-            {request.admin_reply && (
-              <div className="border-t pt-4">
-                <h3 className="font-semibold mb-2 flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4" />
-                  Admin Reply
-                </h3>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted p-3 rounded-lg">
-                  {request.admin_reply}
-                </p>
-                {request.first_reply_at && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Replied {formatDate(new Date(request.first_reply_at), "MMM d, yyyy 'at' h:mm a")}
-                  </p>
-                )}
-              </div>
-            )}
+
 
             {request.rejection_reason && (
               <div className="border-t pt-4">
@@ -199,7 +193,7 @@ export default async function AdminRequestDetailPage({
               </div>
             )}
 
-            {request.request_type === 'complaint' && (request.tagged_residents?.length > 0 || request.tagged_pets?.length > 0) && (
+            {request.request_type === 'complaint' && ((request.tagged_residents?.length ?? 0) > 0 || (request.tagged_pets?.length ?? 0) > 0) && (
               <div className="border-t pt-4">
                 <h3 className="font-semibold mb-3">Complaint Regarding</h3>
 
@@ -272,13 +266,14 @@ export default async function AdminRequestDetailPage({
               </div>
             )}
 
-            <div className="border-t pt-4">
-              <AdminReplyDialog
-                requestId={request.id}
+            <div className="border-t pt-6">
+              <RequestComments
+                requestId={requestId}
                 tenantId={tenant.id}
                 tenantSlug={slug}
-                currentReply={request.admin_reply}
-                currentNotes={request.admin_internal_notes}
+                initialComments={request.comments || []}
+                currentUserId={user.id}
+                isAdmin={true}
               />
             </div>
           </CardContent>

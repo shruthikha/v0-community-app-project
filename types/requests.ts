@@ -1,3 +1,22 @@
+export interface Comment {
+  id: string
+  tenant_id: string
+  author_id: string
+  content: string
+  parent_id: string | null
+  resident_request_id: string | null
+  created_at: string
+  updated_at: string
+  author?: {
+    id: string
+    first_name: string
+    last_name: string
+    profile_picture_url: string | null
+    role?: string
+    is_tenant_admin?: boolean
+  }
+}
+
 export type RequestType = 'maintenance' | 'question' | 'complaint' | 'safety' | 'account_access' | 'other'
 export type RequestStatus = 'pending' | 'in_progress' | 'resolved' | 'rejected'
 export type RequestPriority = 'normal' | 'urgent' | 'emergency'
@@ -24,6 +43,7 @@ export interface ResidentRequest {
 
   // Metadata
   is_anonymous: boolean
+  is_public: boolean
   images: string[]
   tagged_resident_ids: string[]
   tagged_pet_ids: string[]
@@ -56,11 +76,45 @@ export interface ResidentRequestWithRelations extends ResidentRequest {
     id: string
     name: string
     type: string
+    coordinates?: { lat: number; lng: number } | null
+    boundary_coordinates?: number[][] | null
+    path_coordinates?: number[][] | null
   } | null
   resolved_by_user?: {
     first_name: string
     last_name: string
   } | null
+  photo_url?: string | null
+  tagged_residents?: {
+    id: string
+    first_name: string
+    last_name: string
+    profile_picture_url?: string | null
+  }[]
+  tagged_pets?: {
+    id: string
+    name: string
+    species: string
+    breed?: string | null
+    profile_picture_url?: string | null
+    family_unit?: {
+      id: string
+      name: string
+      primary_contact?: {
+        id: string
+        first_name: string
+        last_name: string
+        profile_picture_url?: string | null
+      } | null
+    } | null
+  }[]
+  original_submitter?: {
+    id: string
+    first_name: string
+    last_name: string
+    profile_picture_url?: string | null
+  } | null
+  comments?: Comment[]
 }
 
 export interface CreateRequestData {
@@ -74,6 +128,7 @@ export interface CreateRequestData {
   custom_location_lat?: number | null
   custom_location_lng?: number | null
   is_anonymous?: boolean
+  is_public?: boolean
   images?: string[]
   tagged_resident_ids?: string[]
   tagged_pet_ids?: string[]

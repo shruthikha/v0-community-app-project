@@ -1,83 +1,14 @@
 import { createServerClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { cache } from "react"
-
-export interface ResidentRequest {
-    id: string
-    tenant_id: string
-    created_by: string | null
-    original_submitter_id: string
-    title: string
-    request_type: string
-    description: string | null
-    priority: string
-    status: string
-    location_type: string | null
-    location_id: string | null
-    custom_location_name: string | null
-    custom_location_lat: number | null
-    custom_location_lng: number | null
-    is_anonymous: boolean
-    images: string[]
-    tagged_resident_ids: string[]
-    tagged_pet_ids: string[]
-    admin_reply: string | null
-    admin_internal_notes: string | null
-    rejection_reason: string | null
-    resolved_at: string | null
-    resolved_by: string | null
-    first_reply_at: string | null
-    created_at: string
-    updated_at: string
-}
-
-export interface ResidentRequestWithRelations extends ResidentRequest {
-    creator?: {
-        id: string
-        first_name: string
-        last_name: string
-        profile_picture_url: string | null
-    } | null
-    original_submitter?: {
-        id: string
-        first_name: string
-        last_name: string
-        profile_picture_url: string | null
-    } | null
-    location?: {
-        id: string
-        name: string
-        type: string
-    } | null
-    resolved_by_user?: {
-        id: string
-        first_name: string
-        last_name: string
-    } | null
-    tagged_residents?: {
-        id: string
-        first_name: string
-        last_name: string
-        profile_picture_url: string | null
-    }[]
-    tagged_pets?: {
-        id: string
-        name: string
-        species: string
-        breed: string
-        profile_picture_url: string | null
-        family_unit?: {
-            id: string
-            name: string
-            primary_contact?: {
-                id: string
-                first_name: string
-                last_name: string
-                profile_picture_url: string | null
-            } | null
-        } | null
-    }[]
-}
-
+import type {
+    Comment,
+    RequestType,
+    RequestStatus,
+    RequestPriority,
+    ResidentRequest,
+    ResidentRequestWithRelations
+} from "@/types/requests"
 export interface GetResidentRequestsOptions {
     // Filter options
     creatorId?: string
@@ -85,6 +16,7 @@ export interface GetResidentRequestsOptions {
     status?: string
     excludeStatus?: string
     types?: string[]
+    isPublic?: boolean
 
     // Enrichment options
     enrichWithCreator?: boolean
@@ -92,6 +24,7 @@ export interface GetResidentRequestsOptions {
     enrichWithLocation?: boolean
     enrichWithResolvedBy?: boolean
     enrichWithTaggedEntities?: boolean
+    enrichWithComments?: boolean
 }
 
 export const getResidentRequests = cache(async (
@@ -104,11 +37,13 @@ export const getResidentRequests = cache(async (
         status,
         excludeStatus,
         types,
+        isPublic,
         enrichWithCreator = false,
         enrichWithOriginalSubmitter = false,
         enrichWithLocation = false,
         enrichWithResolvedBy = false,
         enrichWithTaggedEntities = false,
+        enrichWithComments = false,
     } = options
 
     const supabase = await createServerClient()
@@ -129,6 +64,7 @@ export const getResidentRequests = cache(async (
     custom_location_lat,
     custom_location_lng,
     is_anonymous,
+    is_public,
     images,
     tagged_resident_ids,
     tagged_pet_ids,
@@ -156,7 +92,7 @@ export const getResidentRequests = cache(async (
 
     if (enrichWithLocation) {
         selectQuery += `,
-      location:locations!location_id(id, name, type)
+      location:location_id(id, name, type, coordinates, boundary_coordinates, path_coordinates)
     `
     }
 
@@ -191,6 +127,10 @@ export const getResidentRequests = cache(async (
         query = query.in("request_type", types)
     }
 
+    if (isPublic !== undefined) {
+        query = query.eq("is_public", isPublic)
+    }
+
     const { data: requests, error } = await query.order("created_at", { ascending: false })
 
     if (error) {
@@ -202,36 +142,36 @@ export const getResidentRequests = cache(async (
         return []
     }
 
+    const typedRequests = requests as any[]
+
     // Handle tagged entities enrichment if requested
     let taggedResidentsMap = new Map<string, any[]>()
     let taggedPetsMap = new Map<string, any[]>()
+    let commentsMap = new Map<string, any[]>()
+
+    const enrichmentPromises: any[] = []
 
     if (enrichWithTaggedEntities) {
         const allTaggedResidentIds = [...new Set(requests.flatMap((r: any) => r.tagged_resident_ids || []))]
         const allTaggedPetIds = [...new Set(requests.flatMap((r: any) => r.tagged_pet_ids || []))]
 
         if (allTaggedResidentIds.length > 0) {
-            const { data: residents } = await supabase
-                .from("users")
-                .select("id, first_name, last_name, profile_picture_url")
-                .in("id", allTaggedResidentIds)
-                .eq("tenant_id", tenantId)
-
-            if (residents) {
-                const residentMap = new Map(residents.map(r => [r.id, r]))
-                requests.forEach((r: any) => {
-                    if (r.tagged_resident_ids && r.tagged_resident_ids.length > 0) {
-                        const tagged = r.tagged_resident_ids.map((id: string) => residentMap.get(id)).filter(Boolean)
-                        taggedResidentsMap.set(r.id, tagged)
-                    }
-                })
-            }
+            enrichmentPromises.push(
+                supabase
+                    .from("users")
+                    .select("id, first_name, last_name, profile_picture_url")
+                    .in("id", allTaggedResidentIds)
+                    .eq("tenant_id", tenantId)
+            )
+        } else {
+            enrichmentPromises.push(Promise.resolve({ data: [] }))
         }
 
         if (allTaggedPetIds.length > 0) {
-            const { data: pets } = await supabase
-                .from("pets")
-                .select(`
+            enrichmentPromises.push(
+                supabase
+                    .from("pets")
+                    .select(`
           id,
           name,
           species,
@@ -239,25 +179,73 @@ export const getResidentRequests = cache(async (
           profile_picture_url,
           family_unit:family_unit_id(id, name, primary_contact:primary_contact_id(id, first_name, last_name, profile_picture_url))
         `)
-                .in("id", allTaggedPetIds)
-
-            if (pets) {
-                const petMap = new Map(pets.map(p => [p.id, p]))
-                requests.forEach((r: any) => {
-                    if (r.tagged_pet_ids && r.tagged_pet_ids.length > 0) {
-                        const tagged = r.tagged_pet_ids.map((id: string) => petMap.get(id)).filter(Boolean)
-                        taggedPetsMap.set(r.id, tagged)
-                    }
-                })
-            }
+                    .in("id", allTaggedPetIds)
+            )
+        } else {
+            enrichmentPromises.push(Promise.resolve({ data: [] }))
         }
+    } else {
+        enrichmentPromises.push(Promise.resolve({ data: [] }), Promise.resolve({ data: [] })) // Push placeholders
     }
 
-    return requests.map((request: any) => {
+    const adminClient = createAdminClient()
+    // Handle comments enrichment if requested
+    if (enrichWithComments) {
+        enrichmentPromises.push(
+            adminClient
+                .from("comments")
+                .select(`
+                *,
+                author:users!author_id(id, first_name, last_name, profile_picture_url, role, is_tenant_admin)
+            `)
+                .in("resident_request_id", typedRequests.map((r: any) => r.id))
+                .order("created_at", { ascending: true })
+        )
+    } else {
+        enrichmentPromises.push(Promise.resolve({ data: [] })) // Push placeholder
+    }
+
+    const results = await Promise.all(enrichmentPromises)
+
+    let resultIndex = 0
+
+    if (enrichWithTaggedEntities) {
+        const taggedResidents = (results[resultIndex++].data || []) as { id: string; first_name: string; last_name: string; profile_picture_url: string | null }[]
+        const residentMap = new Map(taggedResidents.map(r => [r.id, r]))
+        requests.forEach((r: any) => {
+            if (r.tagged_resident_ids && r.tagged_resident_ids.length > 0) {
+                const tagged = r.tagged_resident_ids.map((id: string) => residentMap.get(id)).filter(Boolean)
+                taggedResidentsMap.set(r.id, tagged)
+            }
+        })
+
+        const taggedPets = (results[resultIndex++].data || []) as { id: string; name: string; species: string; breed: string; profile_picture_url: string | null; family_unit?: { id: string; name: string; primary_contact?: { id: string; first_name: string; last_name: string; profile_picture_url: string | null } | null } | null }[]
+        const petMap = new Map(taggedPets.map(p => [p.id, p]))
+        requests.forEach((r: any) => {
+            if (r.tagged_pet_ids && r.tagged_pet_ids.length > 0) {
+                const tagged = r.tagged_pet_ids.map((id: string) => petMap.get(id)).filter(Boolean)
+                taggedPetsMap.set(r.id, tagged)
+            }
+        })
+    } else {
+        resultIndex += 2 // Skip placeholders
+    }
+
+    if (enrichWithComments) {
+        const comments = (results[resultIndex++].data || []) as Comment[]
+        comments.forEach((comment: Comment) => {
+            const existing = commentsMap.get(comment.resident_request_id!) || []
+            commentsMap.set(comment.resident_request_id!, [...existing, comment])
+        })
+    }
+
+    return typedRequests.map((request: any) => {
         const base: ResidentRequestWithRelations = {
             ...request,
+            photo_url: request.images?.[0] || null,
             tagged_residents: taggedResidentsMap.get(request.id) || [],
             tagged_pets: taggedPetsMap.get(request.id) || [],
+            comments: commentsMap.get(request.id) || [],
         }
         return base
     })

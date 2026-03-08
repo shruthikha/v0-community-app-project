@@ -16,14 +16,14 @@ export async function calculateStatValue(
                 .eq("id", userId)
                 .single()
 
-            if (!user?.lots?.neighborhood_id) return 0
+            if (!(user?.lots as any)?.neighborhood_id) return 0
 
             // Count active check-ins in neighborhood
             const { count } = await supabase
                 .from("check_ins")
                 .select("*, user_id!inner(lot_id, lots!inner(neighborhood_id))", { count: "exact", head: true })
                 .eq("status", "active")
-                .eq("user_id.lots.neighborhood_id", user.lots.neighborhood_id)
+                .eq("user_id.lots.neighborhood_id", (user!.lots as any).neighborhood_id)
 
             return count || 0
         }
@@ -36,13 +36,13 @@ export async function calculateStatValue(
                 .eq("id", userId)
                 .single()
 
-            if (user?.lots?.neighborhood_id) {
+            if ((user?.lots as any)?.neighborhood_id) {
                 // Count in neighborhood
                 const { count } = await supabase
                     .from("users")
                     .select("id, lot_id, lots!inner(neighborhood_id)", { count: "exact", head: true })
                     .eq("role", "resident")
-                    .eq("lots.neighborhood_id", user.lots.neighborhood_id)
+                    .eq("lots.neighborhood_id", (user!.lots as any).neighborhood_id)
 
                 return count || 0
             } else {
@@ -89,13 +89,13 @@ export async function calculateStatValue(
                 .eq("id", userId)
                 .single()
 
-            if (!user?.lots?.neighborhood_id) return 0
+            if (!(user?.lots as any)?.neighborhood_id) return 0
 
             const { count } = await supabase
                 .from("resident_requests")
                 .select("*, user_id!inner(lot_id, lots!inner(neighborhood_id))", { count: "exact", head: true })
                 .in("status", ["pending", "in_progress"])
-                .eq("user_id.lots.neighborhood_id", user.lots.neighborhood_id)
+                .eq("user_id.lots.neighborhood_id", (user!.lots as any).neighborhood_id)
 
             return count || 0
         }
@@ -108,13 +108,13 @@ export async function calculateStatValue(
                 .eq("id", userId)
                 .single()
 
-            if (!user?.lots?.neighborhood_id) return 0
+            if (!(user?.lots as any)?.neighborhood_id) return 0
 
             const { count } = await supabase
                 .from("exchange_listings")
                 .select("*, user_id!inner(lot_id, lots!inner(neighborhood_id))", { count: "exact", head: true })
                 .eq("status", "available")
-                .eq("user_id.lots.neighborhood_id", user.lots.neighborhood_id)
+                .eq("user_id.lots.neighborhood_id", (user!.lots as any).neighborhood_id)
 
             return count || 0
         }

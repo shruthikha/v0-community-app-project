@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Card, CardContent } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, ArrowLeft, ArrowRight, Check, Wrench, HelpCircle, AlertTriangle, Shield, MoreHorizontal, MapPin, Image as ImageIcon } from 'lucide-react'
+import { Loader2, ArrowLeft, ArrowRight, Check, Wrench, HelpCircle, AlertTriangle, Shield, MessageSquare, MoreHorizontal, MapPin, Image as ImageIcon } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import { useRioFeedback } from "@/components/feedback/rio-feedback-provider"
 import { createResidentRequest } from "@/app/actions/resident-requests"
@@ -72,6 +72,7 @@ export function CreateRequestModal({
     custom_location_lng: null as number | null,
     community_location_name: "" as string, // Store name directly
     is_anonymous: false,
+    is_public: false,
     images: [] as string[],
     tagged_resident_ids: [] as string[],
     tagged_pet_ids: [] as string[],
@@ -104,6 +105,11 @@ export function CreateRequestModal({
     setStep(prev => prev - 1)
   }
 
+  const effectiveIsPublic = formData.is_anonymous ? false :
+    formData.request_type && ['maintenance', 'safety'].includes(formData.request_type) ? true :
+      formData.request_type && ['complaint', 'account_access'].includes(formData.request_type) ? false :
+        formData.is_public;
+
   const handleSubmit = async () => {
     if (!formData.request_type) return
     setIsSubmitting(true)
@@ -120,6 +126,7 @@ export function CreateRequestModal({
         custom_location_lat: formData.location_type === "custom" ? formData.custom_location_lat : null,
         custom_location_lng: formData.location_type === "custom" ? formData.custom_location_lng : null,
         is_anonymous: formData.is_anonymous,
+        is_public: effectiveIsPublic,
         images: formData.images,
         tagged_resident_ids: formData.tagged_resident_ids,
         tagged_pet_ids: formData.tagged_pet_ids,
@@ -155,6 +162,7 @@ export function CreateRequestModal({
           custom_location_lng: null,
           community_location_name: "",
           is_anonymous: false,
+          is_public: false,
           images: [],
           tagged_resident_ids: [],
           tagged_pet_ids: [],
@@ -286,6 +294,32 @@ export function CreateRequestModal({
                 entityType={"request" as any}
               />
             </div>
+
+            {/* Visibility Toggle */}
+            {formData.request_type && !['complaint', 'account_access'].includes(formData.request_type) && (
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-start space-x-3 p-4 rounded-lg bg-muted/30 border border-muted transition-all">
+                  <Checkbox
+                    id="is_public"
+                    checked={effectiveIsPublic}
+                    disabled={['maintenance', 'safety'].includes(formData.request_type)}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_public: checked as boolean }))}
+                    className="mt-1"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="is_public" className="text-sm font-semibold cursor-pointer">
+                      Allow other residents to see this request
+                    </Label>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {['maintenance', 'safety'].includes(formData.request_type)
+                        ? "For community awareness, maintenance and safety issues are always visible to other residents."
+                        : "Enable this to allow your neighbors to see the progress and join the conversation."
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )
 
@@ -414,6 +448,13 @@ export function CreateRequestModal({
                   <div className="bg-muted/50 p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
                     <Shield className="h-4 w-4" />
                     Submitting anonymously
+                  </div>
+                )}
+
+                {effectiveIsPublic && !formData.is_anonymous && (
+                  <div className="bg-primary/5 p-3 rounded-md text-sm text-primary flex items-center gap-2 border border-primary/10">
+                    <MessageSquare className="h-4 w-4" />
+                    Visible to community
                   </div>
                 )}
               </CardContent>

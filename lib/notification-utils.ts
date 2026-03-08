@@ -80,6 +80,13 @@ export function generateNotificationTitle(
     case "document_updated":
       return "Document Updated"
 
+    // Requests
+    case "request_resident_reply":
+    case "request_admin_reply":
+      return "New message on request"
+    case "request_status_changed":
+      return "Request updated"
+
     // Mentions (future)
     case "mention":
       return `${actorName || "Someone"} mentioned you`
@@ -154,6 +161,13 @@ export function generateNotificationMessage(
     case "document_published":
     case "document_updated":
       return context.message || null
+
+    case "request_resident_reply":
+    case "request_admin_reply":
+      if (!context.message) return null
+      return context.message.length > 50
+        ? `${context.message.substring(0, 50)}...`
+        : context.message
 
     default:
       return message || null

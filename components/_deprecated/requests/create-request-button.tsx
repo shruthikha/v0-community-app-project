@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CreateRequestModal } from "./create-request-modal"
+import { CreateRequestModal } from "../../requests/create-request-modal"
 import type { RequestType } from "@/types/requests"
 
 interface CreateRequestButtonProps {
@@ -29,7 +29,7 @@ export function CreateRequestButton({
         onOpenChange={setIsModalOpen}
         tenantSlug={tenantSlug}
         tenantId={tenantId}
-        requestType={requestType}
+        defaultType={requestType}
       />
     </>
   )

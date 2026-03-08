@@ -13,6 +13,8 @@ import { format } from "date-fns"
 import Image from "next/image"
 import { RequestLocationMap } from "@/components/requests/request-location-map"
 import { TrackRequestView } from "@/components/analytics/track-views"
+import { getRequestById } from "@/app/actions/resident-requests"
+import { RequestComments } from "@/components/requests/RequestComments"
 
 interface RequestDetailPageProps {
   params: Promise<{ slug: string; requestId: string }>
@@ -48,20 +50,29 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
     redirect("/")
   }
 
-  const { data: request, error } = await supabase
-    .from("resident_requests")
-    .select(`
-      *,
-      creator:created_by(id, first_name, last_name, profile_picture_url),
-      location:location_id(id, name, type, coordinates, boundary_coordinates, path_coordinates),
-      resolved_by_user:resolved_by(first_name, last_name)
-    `)
-    .eq("id", requestId)
-    .eq("tenant_id", tenant.id)
-    .single()
+  const request = await getRequestById(requestId, tenant.id)
 
-  if (error || !request) {
+  if (!request) {
     notFound()
+  }
+
+  // Authorization Guard: Only original submitters, public requests, or admins can view
+  const isOriginalSubmitter = request.original_submitter_id === user.id
+  const isPublic = request.is_public === true
+
+  if (!isOriginalSubmitter && !isPublic) {
+    const { data: userData } = await supabase
+      .from("users")
+      .select("role, is_tenant_admin")
+      .eq("id", user.id)
+      .eq("tenant_id", tenant.id)
+      .single()
+
+    const isAdmin = userData && (['tenant_admin', 'super_admin'].includes(userData.role) || userData.is_tenant_admin)
+
+    if (!isAdmin) {
+      notFound()
+    }
   }
 
   // Fetch all locations for the map context
@@ -192,26 +203,17 @@ export default async function RequestDetailPage({ params }: RequestDetailPagePro
               </div>
             )}
 
-            {/* Admin Reply */}
-            {request.admin_reply && (
+            {/* Conversation */}
+            {(request.original_submitter_id === user.id || request.is_public) && (
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold">Admin Response</h2>
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <MessageSquare className="h-5 w-5 text-primary" />
-                      Response from Administration
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="whitespace-pre-wrap">{request.admin_reply}</p>
-                    {request.first_reply_at && (
-                      <p className="text-sm text-muted-foreground">
-                        Replied on {format(new Date(request.first_reply_at), "MMMM d, yyyy 'at' h:mm a")}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
+                <RequestComments
+                  requestId={requestId}
+                  tenantId={tenant.id}
+                  tenantSlug={slug}
+                  initialComments={request.comments || []}
+                  currentUserId={user.id}
+                  isAdmin={false}
+                />
               </div>
             )}
 

@@ -42,6 +42,7 @@ export type NotificationType =
   // Request-related
   | 'request_status_changed'
   | 'request_admin_reply'
+  | 'request_resident_reply'
   | 'announcement_published'
   | 'announcement_updated'
   | 'document_published'
