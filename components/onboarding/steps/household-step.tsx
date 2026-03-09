@@ -9,10 +9,12 @@ import { Plus, User, Dog, Upload, Loader2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
+import { ShimmerButton } from "@/components/library/shimmer-button"
 
 interface HouseholdStepProps {
     onNext: (data: any) => void
     onBack: () => void
+    onSave?: (data: any, silent?: boolean) => Promise<void>
     initialData?: any
 }
 
@@ -26,7 +28,7 @@ const RELATIONSHIP_TYPES = [
     { value: "other", label: "Other" },
 ]
 
-export function HouseholdStep({ onNext, onBack, initialData }: HouseholdStepProps) {
+export function HouseholdStep({ onNext, onBack, onSave, initialData }: HouseholdStepProps) {
     const [familyName, setFamilyName] = useState("")
     const [familyMembers, setFamilyMembers] = useState<any[]>([])
     const [pets, setPets] = useState<any[]>([])
@@ -35,6 +37,7 @@ export function HouseholdStep({ onNext, onBack, initialData }: HouseholdStepProp
     const [newPet, setNewPet] = useState({ name: "", species: "", breed: "", avatarUrl: "" })
     const [isUploading, setIsUploading] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
     const { toast } = useToast()
 
     useEffect(() => {
@@ -84,6 +87,8 @@ export function HouseholdStep({ onNext, onBack, initialData }: HouseholdStepProp
                     tenant_id: initialData.tenantId
                 })
         }
+
+        triggerAutoSave({}, false) // just update the save UI indicator
     }
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,6 +177,8 @@ export function HouseholdStep({ onNext, onBack, initialData }: HouseholdStepProp
             setNewPet({ name: "", species: "", breed: "", avatarUrl: "" })
             setShowAddPet(false)
 
+            triggerAutoSave({ pets: [...pets, formattedPet] }, false)
+
             toast({
                 description: "Pet added successfully!",
             })
@@ -184,6 +191,36 @@ export function HouseholdStep({ onNext, onBack, initialData }: HouseholdStepProp
             })
         } finally {
             setIsLoading(false)
+        }
+    }
+
+    const triggerAutoSave = async (overrides: any = {}, saveFamilyName: boolean = true) => {
+        if (!onSave) return
+
+        setSaveStatus('saving')
+        try {
+            const currentFamilyName = overrides.familyName !== undefined ? overrides.familyName : familyName;
+
+            // Save family name if changed
+            if (saveFamilyName && initialData?.familyUnitId && currentFamilyName !== initialData?.familyName) {
+                const supabase = createClient()
+                await supabase
+                    .from("family_units")
+                    .update({ name: currentFamilyName })
+                    .eq("id", initialData.familyUnitId)
+            }
+
+            await onSave({
+                familyMembers: overrides.familyMembers !== undefined ? overrides.familyMembers : familyMembers,
+                pets: overrides.pets !== undefined ? overrides.pets : pets,
+                relationships: overrides.relationships !== undefined ? overrides.relationships : relationships,
+                familyName: currentFamilyName,
+                ...overrides
+            }, true)
+            setSaveStatus('saved')
+            setTimeout(() => setSaveStatus('idle'), 2000)
+        } catch (error) {
+            setSaveStatus('idle')
         }
     }
 
@@ -218,6 +255,7 @@ export function HouseholdStep({ onNext, onBack, initialData }: HouseholdStepProp
                             id="familyName"
                             value={familyName}
                             onChange={(e) => setFamilyName(e.target.value)}
+                            onBlur={() => triggerAutoSave()}
                             placeholder="e.g. The Smiths"
                         />
                     </div>
@@ -296,9 +334,21 @@ export function HouseholdStep({ onNext, onBack, initialData }: HouseholdStepProp
                         </Button>
                     </div>
 
-                    <div className="flex gap-3 pt-6">
-                        <Button variant="ghost" onClick={onBack} className="flex-1 h-12">Back</Button>
-                        <Button onClick={handleNext} className="flex-1 h-12">Continue</Button>
+                    <div className="sticky bottom-[-2rem] md:bottom-[-3rem] pt-4 pb-2 bg-background z-10 flex flex-col sm:flex-row items-center gap-3">
+                        <div className="flex-1 w-full order-3 sm:order-1 flex items-center justify-center sm:justify-start">
+                            {saveStatus === 'saving' && (
+                                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                    <span className="animate-spin h-3 w-3 border-2 border-primary border-t-transparent rounded-full" /> Saving...
+                                </span>
+                            )}
+                            {saveStatus === 'saved' && (
+                                <span className="text-sm text-muted-foreground">Saved</span>
+                            )}
+                        </div>
+                        <Button type="button" variant="ghost" onClick={onBack} className="w-full sm:w-auto flex-1 order-1 sm:order-2 h-12">Back</Button>
+                        <ShimmerButton type="button" onClick={handleNext} className="w-full sm:w-auto flex-1 order-2 sm:order-3 h-12" background="hsl(var(--primary))">
+                            Continue
+                        </ShimmerButton>
                     </div>
                 </div>
             </div>

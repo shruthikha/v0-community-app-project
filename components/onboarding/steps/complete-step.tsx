@@ -39,7 +39,7 @@ export function CompleteStep({ onNext }: CompleteStepProps) {
                 </p>
             </div>
 
-            <div className="pt-8 flex justify-center">
+            <div className="sticky bottom-[-2rem] md:bottom-[-3rem] pt-4 pb-2 bg-background z-10 flex justify-center">
                 <RainbowButton
                     onClick={() => onNext({})}
                     className="h-14 px-8 text-lg font-semibold"

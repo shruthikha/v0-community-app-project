@@ -62,7 +62,7 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
         }
     }
 
-    const handleNext = async (stepData: any) => {
+    const handleSave = async (stepData: any, silent: boolean = true) => {
         const currentStepId = STEPS[currentStep].id
 
         try {
@@ -76,7 +76,7 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
                     birthCountry: stepData.birthCountry,
                     currentCountry: stepData.currentCountry
                 })
-                ProfileAnalytics.updated(['first_name', 'last_name', 'about', 'birthday', 'location'])
+                if (!silent) ProfileAnalytics.updated(['first_name', 'last_name', 'about', 'birthday', 'location'])
             } else if (currentStepId === "contact") {
                 await updateContactInfo(userId, {
                     email: stepData.email,
@@ -84,7 +84,7 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
                     languages: stepData.languages,
                     preferredLanguage: stepData.preferredLanguage
                 })
-                ProfileAnalytics.updated(['email', 'phone', 'languages'])
+                if (!silent) ProfileAnalytics.updated(['email', 'phone', 'languages'])
             } else if (currentStepId === "journey") {
                 await updateJourney(userId, {
                     journeyStage: stepData.journeyStage,
@@ -92,29 +92,47 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
                     constructionStartDate: stepData.constructionStartDate,
                     constructionEndDate: stepData.constructionEndDate
                 })
-                ProfileAnalytics.updated(['journey_stage', 'move_dates'])
+                if (!silent) ProfileAnalytics.updated(['journey_stage', 'move_dates'])
             } else if (currentStepId === "household") {
                 // HouseholdStep saves data directly, but we track the milestone here
-                ProfileAnalytics.updated(['household_info'])
+                if (!silent) ProfileAnalytics.updated(['household_info'])
             } else if (currentStepId === "roots") {
                 await updateInterests(userId, stepData.interests || [])
-                ProfileAnalytics.updated(['interests'])
+                if (!silent) ProfileAnalytics.updated(['interests'])
             } else if (currentStepId === "skills") {
                 // stepData.skills is already in the format [{ id, openToRequests }]
                 await updateSkills(userId, stepData.skills || [])
-                ProfileAnalytics.updated(['skills'])
+                if (!silent) ProfileAnalytics.updated(['skills'])
             } else if (currentStepId === "complete") {
                 await completeOnboarding(userId)
                 const source = searchParams?.get('source') || undefined
-                TourAnalytics.profileTourCompleted(source)
-                router.push(`/t/${initialData.tenantSlug}/dashboard`)
+                if (!silent) TourAnalytics.profileTourCompleted(source)
+                if (!silent) router.push(`/t/${initialData.tenantSlug}/dashboard`)
                 return
             }
+        } catch (error) {
+            console.error(`Failed to save ${currentStepId} info:`, error)
+            if (!silent) {
+                toast({
+                    title: "Error saving data",
+                    description: "Please try again.",
+                    variant: "destructive"
+                })
+            }
+            throw error // Re-throw so child components know the save failed
+        }
+    }
+
+    const handleNext = async (stepData: any) => {
+        const currentStepId = STEPS[currentStep].id
+        try {
+            await handleSave(stepData, false)
 
             if (currentStep < STEPS.length - 1) {
                 setDirection(1)
                 setCurrentStep(prev => prev + 1)
             }
+
         } catch (error) {
             console.error(`Failed to save ${currentStepId} info:`, error)
             toast({
@@ -139,6 +157,7 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
                     {currentStep === 0 && (
                         <IdentityStep
                             onNext={handleNext}
+                            onSave={handleSave}
                             initialData={initialData}
                         />
                     )}
@@ -146,6 +165,7 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
                         <ContactStep
                             onNext={handleNext}
                             onBack={handleBack}
+                            onSave={handleSave}
                             initialData={initialData}
                         />
                     )}
@@ -153,6 +173,7 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
                         <JourneyStep
                             onNext={handleNext}
                             onBack={handleBack}
+                            onSave={handleSave}
                             initialData={initialData}
                         />
                     )}
@@ -160,6 +181,7 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
                         <HouseholdStep
                             onNext={handleNext}
                             onBack={handleBack}
+                            onSave={handleSave}
                             initialData={initialData}
                         />
                     )}
@@ -167,6 +189,7 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
                         <RootsStep
                             onNext={handleNext}
                             onBack={handleBack}
+                            onSave={handleSave}
                             availableInterests={availableInterests}
                             initialData={initialData}
                         />
@@ -175,6 +198,7 @@ export function ProfileWizard({ userId, initialData, availableInterests = [], av
                         <SkillsStep
                             onNext={handleNext}
                             onBack={handleBack}
+                            onSave={handleSave}
                             availableSkills={availableSkills}
                             initialData={initialData}
                         />

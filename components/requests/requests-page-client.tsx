@@ -46,7 +46,7 @@ export function RequestsPageClient({ requests, tenantSlug }: RequestsPageClientP
     const router = useRouter()
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedTypes, setSelectedTypes] = useState<RequestType[]>([])
-    const [selectedStatuses, setSelectedStatuses] = useState<RequestStatus[]>(['pending', 'in_progress', 'resolved', 'rejected'])
+    const [selectedStatuses, setSelectedStatuses] = useState<RequestStatus[]>([])
     const [selectedPriorities, setSelectedPriorities] = useState<RequestPriority[]>([])
     const [activeFilter, setActiveFilter] = useState<RequestFilterSectionType>(null)
 

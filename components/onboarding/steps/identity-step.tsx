@@ -14,11 +14,12 @@ import { ShimmerButton } from "@/components/library/shimmer-button"
 
 interface IdentityStepProps {
     onNext: (data: any) => void
+    onSave?: (data: any, silent?: boolean) => Promise<void>
     initialData?: any
 }
 
 
-export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
+export function IdentityStep({ onNext, onSave, initialData }: IdentityStepProps) {
     const [firstName, setFirstName] = useState(initialData?.firstName || "")
     const [lastName, setLastName] = useState(initialData?.lastName || "")
     const [avatarUrl, setAvatarUrl] = useState(initialData?.avatarUrl || "")
@@ -32,6 +33,7 @@ export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
     console.log('[IdentityStep] currentCountry state:', currentCountry)
 
     const [isUploading, setIsUploading] = useState(false)
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
     const { toast } = useToast()
 
     useEffect(() => {
@@ -78,6 +80,10 @@ export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
             toast({
                 description: "Profile photo updated successfully",
             })
+
+            // Auto-save the new avatar immediately
+            triggerAutoSave({ avatarUrl: url })
+
         } catch (error) {
             console.error("Upload error:", error)
             toast({
@@ -89,6 +95,28 @@ export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
             setIsUploading(false)
             // Reset input
             e.target.value = ""
+        }
+    }
+
+    const triggerAutoSave = async (overrides: any = {}) => {
+        if (!onSave) return
+
+        setSaveStatus('saving')
+        try {
+            await onSave({
+                firstName,
+                lastName,
+                avatarUrl,
+                about,
+                birthday: birthday?.toISOString(),
+                birthCountry,
+                currentCountry,
+                ...overrides
+            }, true)
+            setSaveStatus('saved')
+            setTimeout(() => setSaveStatus('idle'), 2000)
+        } catch (error) {
+            setSaveStatus('idle')
         }
     }
 
@@ -155,6 +183,7 @@ export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
                             id="firstName"
                             value={firstName}
                             onChange={(e) => setFirstName(e.target.value)}
+                            onBlur={() => triggerAutoSave()}
                             placeholder="Jane"
                             required
                         />
@@ -165,6 +194,7 @@ export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
                             id="lastName"
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
+                            onBlur={() => triggerAutoSave()}
                             placeholder="Doe"
                             required
                         />
@@ -177,6 +207,7 @@ export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
                         id="about"
                         value={about}
                         onChange={(e) => setAbout(e.target.value)}
+                        onBlur={() => triggerAutoSave()}
                         placeholder="Share a brief bio..."
                         className="resize-none h-24"
                     />
@@ -184,7 +215,10 @@ export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
 
                 <div className="space-y-2">
                     <Label>Birthday</Label>
-                    <DateTimePicker date={birthday} setDate={setBirthday} placeholder="Select your birthday" />
+                    <DateTimePicker date={birthday} setDate={(date) => {
+                        setBirthday(date)
+                        triggerAutoSave({ birthday: date?.toISOString() })
+                    }} placeholder="Select your birthday" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -193,7 +227,10 @@ export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
                         <Combobox
                             options={COUNTRIES.map((c) => ({ value: c, label: c }))}
                             value={birthCountry}
-                            onValueChange={setBirthCountry}
+                            onValueChange={(val) => {
+                                setBirthCountry(val)
+                                triggerAutoSave({ birthCountry: val })
+                            }}
                             placeholder="Select country"
                             searchPlaceholder="Search countries..."
                         />
@@ -203,21 +240,36 @@ export function IdentityStep({ onNext, initialData }: IdentityStepProps) {
                         <Combobox
                             options={COUNTRIES.map((c) => ({ value: c, label: c }))}
                             value={currentCountry}
-                            onValueChange={setCurrentCountry}
+                            onValueChange={(val) => {
+                                setCurrentCountry(val)
+                                triggerAutoSave({ currentCountry: val })
+                            }}
                             placeholder="Select country"
                             searchPlaceholder="Search countries..."
                         />
                     </div>
                 </div>
 
-                <ShimmerButton
-                    type="submit"
-                    className="w-full h-12"
-                    disabled={!firstName || !lastName || isUploading}
-                    background="hsl(var(--primary))"
-                >
-                    Continue
-                </ShimmerButton>
+                <div className="sticky bottom-[-2rem] md:bottom-[-3rem] max-w-md mx-auto pt-4 pb-2 bg-background z-10 flex flex-col sm:flex-row items-center gap-3">
+                    <div className="flex-1 w-full order-2 sm:order-1 flex items-center justify-center sm:justify-start">
+                        {saveStatus === 'saving' && (
+                            <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+                            </span>
+                        )}
+                        {saveStatus === 'saved' && (
+                            <span className="text-sm text-muted-foreground">Saved</span>
+                        )}
+                    </div>
+                    <ShimmerButton
+                        type="submit"
+                        className="w-full sm:w-auto flex-1 order-1 sm:order-2 h-12"
+                        disabled={!firstName || !lastName || isUploading}
+                        background="hsl(var(--primary))"
+                    >
+                        Continue
+                    </ShimmerButton>
+                </div>
             </form>
         </div>
     )

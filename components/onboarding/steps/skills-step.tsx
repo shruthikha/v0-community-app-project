@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 interface SkillsStepProps {
     onNext: (data: any) => void
     onBack: () => void
+    onSave?: (data: any, silent?: boolean) => Promise<void>
     initialData?: any
     availableSkills?: { id: string, name: string, description: string }[]
 }
@@ -21,7 +22,7 @@ interface SkillSelection {
     isNew?: boolean
 }
 
-export function SkillsStep({ onNext, onBack, initialData, availableSkills = [] }: SkillsStepProps) {
+export function SkillsStep({ onNext, onBack, onSave, initialData, availableSkills = [] }: SkillsStepProps) {
     // Initialize with existing skills from profile
     const [selected, setSelected] = useState<SkillSelection[]>(() => {
         if (initialData?.skills && Array.isArray(initialData.skills)) {
@@ -36,7 +37,24 @@ export function SkillsStep({ onNext, onBack, initialData, availableSkills = [] }
     })
     const [searchQuery, setSearchQuery] = useState("")
     const [showDropdown, setShowDropdown] = useState(false)
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
     const searchRef = useRef<HTMLDivElement>(null)
+
+    const triggerAutoSave = async (overrides: any = {}) => {
+        if (!onSave) return
+
+        setSaveStatus('saving')
+        try {
+            await onSave({
+                skills: selected,
+                ...overrides
+            }, true)
+            setSaveStatus('saved')
+            setTimeout(() => setSaveStatus('idle'), 2000)
+        } catch (error) {
+            setSaveStatus('idle')
+        }
+    }
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -51,11 +69,12 @@ export function SkillsStep({ onNext, onBack, initialData, availableSkills = [] }
 
     const toggleSkill = (skillId: string, skillName?: string) => {
         const exists = selected.find(s => s.id === skillId)
-        if (exists) {
-            setSelected(prev => prev.filter(s => s.id !== skillId))
-        } else {
-            setSelected(prev => [...prev, { id: skillId, name: skillName, openToRequests: false }])
-        }
+        const newSelected = exists
+            ? selected.filter(s => s.id !== skillId)
+            : [...selected, { id: skillId, name: skillName, openToRequests: false }]
+
+        setSelected(newSelected)
+        triggerAutoSave({ skills: newSelected })
     }
 
     const addCustomSkill = (name: string) => {
@@ -70,28 +89,34 @@ export function SkillsStep({ onNext, onBack, initialData, availableSkills = [] }
             return;
         }
 
-        setSelected(prev => [...prev, {
+        const newSkill = {
             id: tempId,
             name: trimmedName,
             openToRequests: false,
             isNew: true
-        }])
+        }
+
+        const newSelected = [...selected, newSkill]
+        setSelected(newSelected)
+        triggerAutoSave({ skills: newSelected })
         setSearchQuery("")
         setShowDropdown(false)
     }
 
     const toggleOpenToRequests = (skillId: string) => {
-        setSelected(prev =>
-            prev.map(s =>
-                s.id === skillId
-                    ? { ...s, openToRequests: !s.openToRequests }
-                    : s
-            )
+        const newSelected = selected.map(s =>
+            s.id === skillId
+                ? { ...s, openToRequests: !s.openToRequests }
+                : s
         )
+        setSelected(newSelected)
+        triggerAutoSave({ skills: newSelected })
     }
 
     const removeSkill = (skillId: string) => {
-        setSelected(prev => prev.filter(s => s.id !== skillId))
+        const newSelected = selected.filter(s => s.id !== skillId)
+        setSelected(newSelected)
+        triggerAutoSave({ skills: newSelected })
     }
 
     // Filter skills based on search query
@@ -151,7 +176,7 @@ export function SkillsStep({ onNext, onBack, initialData, availableSkills = [] }
 
                         {/* Dropdown */}
                         {showDropdown && (
-                            <div className="absolute top-full left-0 right-0 mt-2 max-h-60 overflow-y-auto bg-popover border rounded-xl shadow-lg z-10">
+                            <div className="absolute top-full left-0 right-0 mt-2 max-h-60 overflow-y-auto bg-popover border rounded-xl shadow-lg z-50">
                                 {searchQuery.trim() && !exactMatch && (
                                     <button
                                         type="button"
@@ -254,9 +279,19 @@ export function SkillsStep({ onNext, onBack, initialData, availableSkills = [] }
                     )}
                 </div>
 
-                <div className="flex gap-3 pt-2">
-                    <Button variant="ghost" onClick={onBack} className="flex-1 h-12">Back</Button>
-                    <Button onClick={handleNext} className="flex-1 h-12">Continue</Button>
+                <div className="sticky bottom-[-2rem] md:bottom-[-3rem] pt-4 pb-2 bg-background z-10 flex flex-col sm:flex-row items-center gap-3">
+                    <div className="flex-1 w-full order-3 sm:order-1 flex items-center justify-center sm:justify-start">
+                        {saveStatus === 'saving' && (
+                            <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                <span className="animate-spin h-3 w-3 border-2 border-primary border-t-transparent rounded-full" /> Saving...
+                            </span>
+                        )}
+                        {saveStatus === 'saved' && (
+                            <span className="text-sm text-muted-foreground">Saved</span>
+                        )}
+                    </div>
+                    <Button variant="ghost" onClick={onBack} className="w-full sm:w-auto flex-1 order-1 sm:order-2 h-12">Back</Button>
+                    <Button onClick={handleNext} className="w-full sm:w-auto flex-1 order-2 sm:order-3 h-12">Continue</Button>
                 </div>
             </div>
         </div>

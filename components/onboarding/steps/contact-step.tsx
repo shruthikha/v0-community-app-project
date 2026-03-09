@@ -13,15 +13,17 @@ import { LANGUAGES } from "@/lib/data/countries-languages"
 interface ContactStepProps {
     onNext: (data: any) => void
     onBack: () => void
+    onSave?: (data: any, silent?: boolean) => Promise<void>
     initialData?: any
 }
 
-export function ContactStep({ onNext, onBack, initialData }: ContactStepProps) {
+export function ContactStep({ onNext, onBack, onSave, initialData }: ContactStepProps) {
     const [email, setEmail] = useState(initialData?.email || "")
     const [phone, setPhone] = useState(initialData?.phone || "")
     const [languages, setLanguages] = useState<string[]>(initialData?.languages || [])
     const [preferredLanguage, setPreferredLanguage] = useState(initialData?.preferredLanguage || "")
     const [languageSearch, setLanguageSearch] = useState("")
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
     useEffect(() => {
         if (initialData) {
@@ -40,7 +42,28 @@ export function ContactStep({ onNext, onBack, initialData }: ContactStepProps) {
     }
 
     const removeLanguage = (lang: string) => {
-        setLanguages(languages.filter((l) => l !== lang))
+        const newLanguages = languages.filter((l) => l !== lang)
+        setLanguages(newLanguages)
+        triggerAutoSave({ languages: newLanguages })
+    }
+
+    const triggerAutoSave = async (overrides: any = {}) => {
+        if (!onSave) return
+
+        setSaveStatus('saving')
+        try {
+            await onSave({
+                email,
+                phone,
+                languages,
+                preferredLanguage,
+                ...overrides
+            }, true)
+            setSaveStatus('saved')
+            setTimeout(() => setSaveStatus('idle'), 2000)
+        } catch (error) {
+            setSaveStatus('idle')
+        }
     }
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -67,6 +90,7 @@ export function ContactStep({ onNext, onBack, initialData }: ContactStepProps) {
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
+                            onBlur={() => triggerAutoSave()}
                             className="pl-9"
                             placeholder="you@example.com"
                             required
@@ -83,6 +107,7 @@ export function ContactStep({ onNext, onBack, initialData }: ContactStepProps) {
                             type="tel"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
+                            onBlur={() => triggerAutoSave()}
                             className="pl-9"
                             placeholder="+1 (555) 000-0000"
                         />
@@ -95,7 +120,12 @@ export function ContactStep({ onNext, onBack, initialData }: ContactStepProps) {
                         options={LANGUAGES.map((l) => ({ value: l, label: l }))}
                         value={languageSearch}
                         onValueChange={(value) => {
-                            addLanguage(value)
+                            if (value && !languages.includes(value)) {
+                                const newLanguages = [...languages, value]
+                                setLanguages(newLanguages)
+                                setLanguageSearch("")
+                                triggerAutoSave({ languages: newLanguages })
+                            }
                         }}
                         placeholder="Add a language"
                         searchPlaceholder="Search languages..."
@@ -123,15 +153,28 @@ export function ContactStep({ onNext, onBack, initialData }: ContactStepProps) {
                     <Combobox
                         options={LANGUAGES.map((l) => ({ value: l, label: l }))}
                         value={preferredLanguage}
-                        onValueChange={setPreferredLanguage}
+                        onValueChange={(val) => {
+                            setPreferredLanguage(val)
+                            triggerAutoSave({ preferredLanguage: val })
+                        }}
                         placeholder="Select preferred language"
                         searchPlaceholder="Search languages..."
                     />
                 </div>
 
-                <div className="flex gap-3 pt-4">
-                    <Button type="button" variant="ghost" onClick={onBack} className="flex-1 h-12">Back</Button>
-                    <ShimmerButton type="submit" className="flex-1 h-12" disabled={!email} background="hsl(var(--primary))">
+                <div className="sticky bottom-[-2rem] md:bottom-[-3rem] pt-4 pb-2 bg-background z-10 flex flex-col sm:flex-row items-center gap-3">
+                    <div className="flex-1 w-full order-3 sm:order-1 flex items-center justify-center sm:justify-start">
+                        {saveStatus === 'saving' && (
+                            <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                <span className="animate-spin h-3 w-3 border-2 border-primary border-t-transparent rounded-full" /> Saving...
+                            </span>
+                        )}
+                        {saveStatus === 'saved' && (
+                            <span className="text-sm text-muted-foreground">Saved</span>
+                        )}
+                    </div>
+                    <Button type="button" variant="ghost" onClick={onBack} className="w-full sm:w-auto flex-1 order-1 sm:order-2 h-12">Back</Button>
+                    <ShimmerButton type="submit" className="w-full sm:w-auto flex-1 order-2 sm:order-3 h-12" disabled={!email} background="hsl(var(--primary))">
                         Continue
                     </ShimmerButton>
                 </div>

@@ -218,7 +218,7 @@ export function RequestComments({
                                                     {!editingId && (isMe || isAdmin) && (
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
-                                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 md:opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 transition-opacity">
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-100 md:opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 transition-opacity">
                                                                     <MoreVertical className="h-4 w-4 text-muted-foreground" />
                                                                 </Button>
                                                             </DropdownMenuTrigger>

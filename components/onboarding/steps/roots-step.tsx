@@ -12,23 +12,43 @@ import { useToast } from "@/hooks/use-toast"
 interface RootsStepProps {
     onNext: (data: any) => void
     onBack: () => void
+    onSave?: (data: any, silent?: boolean) => Promise<void>
     initialData?: any
     availableInterests?: { id: string, name: string }[]
 }
 
-export function RootsStep({ onNext, onBack, initialData, availableInterests = [] }: RootsStepProps) {
+export function RootsStep({ onNext, onBack, onSave, initialData, availableInterests = [] }: RootsStepProps) {
     const { toast } = useToast()
     const [selected, setSelected] = useState<string[]>(initialData?.interests || [])
     const [allInterests, setAllInterests] = useState(availableInterests)
     const [searchQuery, setSearchQuery] = useState("")
     const [showDropdown, setShowDropdown] = useState(false)
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
     const searchRef = useRef<HTMLDivElement>(null)
+
+    const triggerAutoSave = async (overrides: any = {}) => {
+        if (!onSave) return
+
+        setSaveStatus('saving')
+        try {
+            await onSave({
+                interests: selected,
+                ...overrides
+            }, true)
+            setSaveStatus('saved')
+            setTimeout(() => setSaveStatus('idle'), 2000)
+        } catch (error) {
+            setSaveStatus('idle')
+        }
+    }
 
     const { handleCreateInterest, isAddingInterest } = useCreateInterest({
         tenantId: initialData?.tenantId,
         onSuccess: (newInterest) => {
             setAllInterests(prev => [...prev, newInterest])
-            setSelected(prev => [...prev, newInterest.id])
+            const newSelected = [...selected, newInterest.id]
+            setSelected(newSelected)
+            triggerAutoSave({ interests: newSelected })
             setSearchQuery("")
         }
     })
@@ -45,15 +65,18 @@ export function RootsStep({ onNext, onBack, initialData, availableInterests = []
     }, [])
 
     const toggleInterest = (interestId: string) => {
-        setSelected(prev =>
-            prev.includes(interestId)
-                ? prev.filter(i => i !== interestId)
-                : [...prev, interestId]
-        )
+        const newSelected = selected.includes(interestId)
+            ? selected.filter(i => i !== interestId)
+            : [...selected, interestId]
+
+        setSelected(newSelected)
+        triggerAutoSave({ interests: newSelected })
     }
 
     const removeInterest = (interestId: string) => {
-        setSelected(prev => prev.filter(i => i !== interestId))
+        const newSelected = selected.filter(i => i !== interestId)
+        setSelected(newSelected)
+        triggerAutoSave({ interests: newSelected })
     }
 
     // Filter interests based on search query
@@ -170,9 +193,19 @@ export function RootsStep({ onNext, onBack, initialData, availableInterests = []
                     )}
                 </div>
 
-                <div className="flex gap-3">
-                    <Button variant="ghost" onClick={onBack} className="flex-1 h-12">Back</Button>
-                    <Button onClick={() => onNext({ interests: selected })} className="flex-1 h-12">Continue</Button>
+                <div className="sticky bottom-[-2rem] md:bottom-[-3rem] pt-4 pb-2 bg-background z-10 flex flex-col sm:flex-row items-center gap-3">
+                    <div className="flex-1 w-full order-3 sm:order-1 flex items-center justify-center sm:justify-start">
+                        {saveStatus === 'saving' && (
+                            <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                <span className="animate-spin h-3 w-3 border-2 border-primary border-t-transparent rounded-full" /> Saving...
+                            </span>
+                        )}
+                        {saveStatus === 'saved' && (
+                            <span className="text-sm text-muted-foreground">Saved</span>
+                        )}
+                    </div>
+                    <Button variant="ghost" onClick={onBack} className="w-full sm:w-auto flex-1 order-1 sm:order-2 h-12">Back</Button>
+                    <Button onClick={() => onNext({ interests: selected })} className="w-full sm:w-auto flex-1 order-2 sm:order-3 h-12">Continue</Button>
                 </div>
             </div>
         </div>

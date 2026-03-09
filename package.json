@@ -5,7 +5,8 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev -H 0.0.0.0",
-    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . --quiet",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint .",
+    "lint:quiet": "ESLINT_USE_FLAT_CONFIG=false eslint . --quiet",
     "start": "next start",
     "type-check": "tsc --noEmit",
     "storybook": "storybook dev -p 6006",

@@ -1,6 +1,7 @@
 "use server"
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
 interface ProfileUpdateData {
@@ -31,6 +32,20 @@ interface ProfileUpdateData {
  * Enforces Backend-First architecture by using createAdminClient (service role).
  */
 export async function updateProfileAction(userId: string, data: ProfileUpdateData) {
+    // 0. Backend-First Security: Verify caller identity
+    const supabaseAuth = await createClient()
+    const { data: { user } } = await supabaseAuth.auth.getUser()
+
+    if (!user) {
+        throw new Error("Unauthorized: Please log in to update your profile.")
+    }
+
+    // TODO: if admin users are allowed to edit other profiles, we would check for `is_tenant_admin` here too.
+    // Assuming residents can only edit their own profiles:
+    if (user.id !== userId) {
+        throw new Error("Forbidden: You do not have permission to modify this profile.")
+    }
+
     const supabase = createAdminClient()
 
     // 1. Update basic user info
