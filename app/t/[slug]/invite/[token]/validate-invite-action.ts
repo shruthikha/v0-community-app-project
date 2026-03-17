@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@supabase/supabase-js"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { timingSafeEqual } from "crypto"
 
 /**
@@ -23,28 +23,10 @@ function secureTokenCompare(a: string, b: string): boolean {
 }
 
 export async function validateInviteToken(token: string, tenantId: string) {
-  console.log("[v0] Validating invite token:", { token, tenantId })
+  console.log("[v0] Validating invite token:", { tenantId, tokenPreview: `${token.slice(0, 6)}…` })
 
   // Create a Supabase client with service role to bypass RLS
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY_DEV
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    const missing = !supabaseUrl ? "NEXT_PUBLIC_SUPABASE_URL" : "SUPABASE_SERVICE_ROLE_KEY(_DEV)"
-    console.error(`[v0] Missing Supabase credentials: ${missing}`)
-    return {
-      success: false,
-      error: `Server configuration error: Missing ${missing}`,
-      resident: null,
-    }
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
+  const supabase = createAdminClient()
 
   const { data: resident, error: residentError } = await supabase
     .from("users")
@@ -54,7 +36,11 @@ export async function validateInviteToken(token: string, tenantId: string) {
     .eq("role", "resident")
     .maybeSingle()
 
-  console.log("[v0] Resident query result:", { resident, residentError })
+  console.log("[v0] Resident query result:", {
+    found: !!resident,
+    residentId: resident?.id,
+    residentError: residentError?.message ?? null,
+  })
 
   if (residentError) {
     return {
@@ -100,9 +86,17 @@ export async function validateInviteToken(token: string, tenantId: string) {
     }
   }
 
+  // Sanitize the resident object before returning to avoid exposing the token to the client
+  const sanitizedResident = {
+    id: resident.id,
+    email: resident.email,
+    first_name: resident.first_name,
+    last_name: resident.last_name,
+  }
+
   return {
     success: true,
     error: null,
-    resident,
+    resident: sanitizedResident,
   }
 }

@@ -1,16 +1,11 @@
 "use server"
 
-import { createClient } from "@supabase/supabase-js"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function createAuthUserAction(email: string, password: string, userId: string) {
   console.log("[v0] Creating auth user with admin API:", { email, userId })
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
+  const supabase = createAdminClient()
 
   // The handle_new_user trigger will automatically:
   // 1. Find the existing user record by email

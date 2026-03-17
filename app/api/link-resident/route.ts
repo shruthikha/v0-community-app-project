@@ -1,5 +1,17 @@
+import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createHash } from "crypto"
+
+/**
+ * Redacts an email address for safe logging.
+ * Example: "user@example.com" -> "us***@example.com"
+ */
+function redactEmail(email: string | undefined | null): string {
+  if (!email) return "unknown"
+  const [local, domain] = email.split("@")
+  if (!domain) return "****" // Not a valid email
+  return `${local.slice(0, 2)}***@${domain}`
+}
 
 export async function POST(request: Request) {
   try {
@@ -20,61 +32,51 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // 2. Allow user to only link themselves
+    // 2. Allow user to only link themselves (BFF check)
     if (user.id !== authUserId) {
       return NextResponse.json({ error: "Forbidden: You can only link your own account" }, { status: 403 })
     }
 
-    // Use service role to bypass RLS
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY_DEV
+    // Use service role to bypass RLS for administrative relinking
+    const supabase = createAdminClient()
 
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
-
+    // 3. Fetch the target resident and verify record ownership
     const { data: oldResident, error: fetchError } = await supabase
       .from("users")
       .select("*")
       .eq("id", residentId)
       .single()
 
-    console.log("[v0] Old resident data:", { oldResident, fetchError })
-
     if (fetchError || !oldResident) {
-      console.error("[v0] Error fetching old resident:", fetchError)
-      return NextResponse.json({ error: "Resident not found" }, { status: 404 })
+      console.error("[v0] Error fetching target resident:", fetchError)
+      return NextResponse.json({ error: "Resident record not found" }, { status: 404 })
     }
 
-    const { error: deleteError } = await supabase.from("users").delete().eq("id", residentId)
-
-    console.log("[v0] Delete result:", { deleteError })
-
-    if (deleteError) {
-      console.error("[v0] Error deleting old resident:", deleteError)
-      return NextResponse.json({ error: deleteError.message }, { status: 500 })
+    // SECURITY: Verification of identity match between Auth User and Database Resident
+    // This prevents a user from providing their own authUserId but a different residentId.
+    if (!user.email || !oldResident.email || oldResident.email.toLowerCase() !== user.email.toLowerCase()) {
+      console.error("[v0] SECURITY: Resident record ownership mismatch.", {
+        authUserEmail: redactEmail(user.email),
+        residentEmail: redactEmail(oldResident.email)
+      })
+      return NextResponse.json({ error: "Forbidden: You do not have permission to link this resident record" }, { status: 403 })
     }
 
-    const { error: insertError } = await supabase.from("users").insert({
-      ...oldResident,
-      id: authUserId, // Use the auth user's ID as the new primary key
-      invite_token: null, // Clear the invite token
-    })
+    // 4. Atomic ID Update: Change the record ID from the temporary residentId to the Auth User ID.
+    // This preserves all columns and is atomic in Postgres.
+    console.log("[v0] Proceeding with atomic relink (ID Update) for:", redactEmail(user.email))
 
-    console.log("[v0] Insert result:", { insertError })
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({
+        id: authUserId,
+        invite_token: null // Clear the invite token upon successful link
+      })
+      .eq("id", residentId)
 
-    if (insertError) {
-      console.error("[v0] Error inserting new resident:", insertError)
-      // Try to restore the old record if insert fails
-      await supabase.from("users").insert(oldResident)
-      return NextResponse.json({ error: insertError.message }, { status: 500 })
+    if (updateError) {
+      console.error("[v0] Error updating resident ID:", updateError)
+      return NextResponse.json({ error: "Failed to finalize account link" }, { status: 500 })
     }
 
     console.log("[v0] Successfully linked resident to auth user")
