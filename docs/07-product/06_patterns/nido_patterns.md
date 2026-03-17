@@ -352,7 +352,7 @@ This ensures only occupied interests are shown, and newly created interests appe
 
 ### [2026-03-12] In-Render Array Mutation
 **Type**: Anti-Pattern
-**Context**: Issue #155 (Lot Search). `.sort()` was called on a raw state variable inside the render cycle.
+**Context**: Issue #155 (Lot Search). `.sort()` was called on a raw_v state variable inside the render cycle.
 **Problem**: `.sort()` mutates the source array. This can corrupt cached state or lead to unstable UI ordering.
 **Fix**: Always copy the array before sorting (`[...arr].sort()`) and preferably wrap it in `useMemo` for stability and performance.
 
@@ -368,3 +368,42 @@ This ensures only occupied interests are shown, and newly created interests appe
 **Problem**: Hardcoded links in widgets continued to point to the old route (`/dashboard/announcements`), leading to 404 errors.
 **Fix**: Update navigational links across the codebase to use the new unified route with appropriate search parameters (e.g., `/dashboard/official?tab=announcements`). Use `revalidatePath` on the old paths to clear any stale cache, even if the route is technically "dead".
 **Strategy**: When consolidating features into tabs, audit global components (Widgets, Notifications, Feed) for navigational debt.
+
+### [2026-03-16] RLS on Framework Tables (Mastra)
+**Type**: Gotcha
+**Context**: Issue #168 (Persistence & RLS). Framework-managed tables (like `mastra_threads`/`messages`) often lack tenant context in their internal insertion logic.
+**Problem**: Adding `NOT NULL` tenant columns and RLS policies breaks the framework's internal writes if it doesn't support passing that metadata.
+**Fix**:
+1. Use a **Robust Metadata Trigger**: Map `metadata->>'tenantSlug'` to a UUID `tenant_id` column.
+2. **Metadata Inheritance**: If the framework doesn't pass metadata to child rows (e.g., messages), use a trigger to inherit `tenant_id` and `user_id` from the parent (e.g., thread).
+3. **Trigger Security**: Use `SECURITY DEFINER` for triggers that perform lookups (e.g., slug to UUID) to avoid RLS recursion or permission denied errors for the database user performing the write.
+
+### [2026-03-16] UUID Casting in Triggers
+**Type**: Gotcha
+**Context**: Issue #168 (Persistence & RLS). Triggers extracting UUIDs from JSONB metadata crashed the entire write if the metadata was missing or malformed.
+**Problem**: A simple `metadata->>'tenantId'::uuid` cast throws an error on `null`, which aborts the transaction.
+**Fix**: Use a `BEGIN...EXCEPTION` block in PL/pgSQL to safely handle casting errors, or explicitly check for `NULL` before casting. Always include a fallback (e.g., `NULL` or a default) To prevent "Silent Crash" of the application logic.
+
+### [2026-03-16] Security-First Thread Management
+**Type**: Pattern
+**Context**: Issue #168 (Mastra Thread Isolation). AI assistants using persistent thread storage MUST verify ownership of the thread before continuing a conversation.
+**Problem**: Relying solely on client-provided `threadId` allows "Conversation Hijacking" where a user can access another user's or tenant's message history just by knowing their UUID.
+**Fix**: In the agent entry point (BFF/Agent Service), fetch the thread metadata BEFORE processing the stream. Compare the stored `tenantId`/`userId` with the current request's session headers. If they mismatch, return a **403 Forbidden** immediately. Do not "fail-open" to a default thread.
+
+### [2026-03-16] Redacted Logging for PII
+**Type**: Pattern
+**Context**: Issue #168 (PII in Logs). Infrastructure logs often capture `userId`, `tenantId`, and `threadId` for debugging.
+**Problem**: Logging raw UUIDs/IDs in production violates privacy standards and exposes PII to log aggregation services.
+**Fix**: Use a hashing or masking helper in your logging layer. Unless `DEBUG_LOGGING=true` is enabled, convert sensitive identifiers to a truncated hash (e.g., `sha256(id).slice(0, 10)`). This preserves the ability to trace a single user's flow across log lines without exposing their actual identity.
+
+### [2026-03-16] Upstream Abort Propagation
+**Type**: Pattern
+**Context**: Issue #168 (Dangling Model Streams). Long-running AI streams consume expensive tokens even after the user closes their browser tab or disconnects.
+**Problem**: Backend services often continue generating text from the LLM upstream even if the client downstream has disconnected, wasting resources.
+**Fix**: Always wire the incoming HTTP `AbortSignal` to the AI SDK's stream call (e.g., `rioAgent.stream(..., { abortSignal: req.signal })`). This allows the framework to signal the LLM provider to stop generation immediately upon client disconnect.
+
+### [2026-03-16] Payload Schema Enforcement
+**Type**: Pattern
+**Context**: Issue #168 (Rio Agent Robustness). AI service endpoints often handle raw JSON bodies that are passed directly to downstream model generators or stream handlers.
+**Problem**: Passing untrusted or malformed JSON payloads to expensive AI operations can lead to opaque 500 errors, resource leaks, or unexpected behavior if the payload shape doesn't match internal expectations.
+**Fix**: ALWAYS use a validation schema (like **Zod**) at the very entry point of your service handler. Parse the request body and validate required fields (`messages`, `threadId`, etc.) BEFORE any logic or database lookups occur. Return a **400 Bad Request** with clear structural errors if the shape is invalid. This ensures your service "fails fast" and remains robust against malformed client requests.
