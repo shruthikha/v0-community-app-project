@@ -66,14 +66,26 @@ export default function RioSseTestPage({ params }: { params: Promise<{ slug: str
 
                 <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
                     {/* Config bar */}
-                    <div className="p-4 border-b bg-muted/30 flex gap-4 items-center">
-                        <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Testing as Tenant:</span>
-                        <Input
-                            value={tenantId}
-                            onChange={(e) => setTenantId(e.target.value)}
-                            className="max-w-[200px] h-8"
-                            placeholder="Tenant ID"
-                        />
+                    <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
+                        <div className="flex gap-4 items-center">
+                            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Testing as Tenant:</span>
+                            <Input
+                                value={tenantId}
+                                onChange={(e) => setTenantId(e.target.value)}
+                                className="max-w-[200px] h-8"
+                                placeholder="Tenant ID"
+                            />
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                localStorage.removeItem(`rio-test-thread-${slug || 'demo-tenant-id'}`);
+                                window.location.reload();
+                            }}
+                        >
+                            Clear Chat & Start Fresh
+                        </Button>
                     </div>
 
                     {/* Messages Area */}

@@ -1,0 +1,105 @@
+import { Memory } from "@mastra/memory";
+
+export class ThreadStore {
+    constructor(private memory: Memory) { }
+
+    /**
+     * Enforces that all thread IDs include the tenantId as a prefix.
+     */
+    public generateTenantThreadId(tenantId: string, baseThreadId: string): string {
+        const prefix = `${tenantId}:`;
+        if (baseThreadId.startsWith(prefix)) {
+            return baseThreadId;
+        }
+        return `${prefix}${baseThreadId}`;
+    }
+
+    /**
+     * Creates a thread and strictly enforces the tenant ID in its metadata.
+     */
+    async createThread({
+        threadId,
+        resourceId,
+        tenantId,
+        userId,
+    }: {
+        threadId: string;
+        resourceId: string;
+        tenantId: string;
+        userId?: string;
+    }) {
+        if (!tenantId) throw new Error("tenantId is required to create a thread.");
+
+        const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
+
+        return this.memory.createThread({
+            threadId: namespacedThreadId,
+            resourceId,
+            metadata: { tenantId, userId, accessMode: "tenant_isolated" },
+        });
+    }
+
+    /**
+     * Retrieves a thread by ID, enforcing that the requested tenantId matches the stored metadata.
+     */
+    async getThreadById(tenantId: string, threadId: string) {
+        if (!tenantId) throw new Error("tenantId is required to fetch a thread.");
+
+        const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
+        const thread = await this.memory.getThreadById({ threadId: namespacedThreadId });
+
+        if (!thread) return null;
+
+        // Backend-First Auth: Defense in Depth (in case the threadId lacked the namespace natively)
+        const storedTenantId = thread?.metadata?.tenantId;
+        if (storedTenantId && storedTenantId !== tenantId) {
+            throw new Error(`403 Forbidden: Thread isolated to tenant ${storedTenantId}. Request from tenant ${tenantId} denied.`);
+        }
+
+        return thread;
+    }
+
+    /**
+     * Updates thread metadata while preserving tenant isolation.
+     */
+    async updateThread(tenantId: string, threadId: string, updates: Parameters<Memory["updateThread"]>[0]) {
+        const thread = await this.getThreadById(tenantId, threadId);
+        if (!thread) throw new Error(`Thread not found or forbidden: ${threadId}`);
+
+        const newMetadata = {
+            ...thread.metadata,
+            ...updates.metadata,
+            tenantId, // Ensure tenantId cannot be overwritten by updates
+            accessMode: "tenant_isolated"
+        };
+
+        return this.memory.updateThread({
+            ...updates,
+            id: thread.id,
+            metadata: newMetadata
+        });
+    }
+
+    /**
+      * Gets messages for a thread, enforcing tenant isolation.
+      */
+    async getMessages(tenantId: string, threadId: string) {
+        // Enforces access check
+        const thread = await this.getThreadById(tenantId, threadId);
+        if (!thread) throw new Error(`Thread not found or forbidden: ${threadId}`);
+
+        const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
+        const result = await this.memory.recall({ threadId: namespacedThreadId });
+        return result.messages;
+    }
+
+    async saveMessages(tenantId: string, threadId: string, messages: any[]) {
+        // Enforces access check
+        const thread = await this.getThreadById(tenantId, threadId);
+        if (!thread) throw new Error(`Thread not found or forbidden: ${threadId}`);
+
+        const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
+        const messagesWithThreadId = messages.map(m => ({ ...m, threadId: namespacedThreadId }));
+        return this.memory.saveMessages({ messages: messagesWithThreadId });
+    }
+}

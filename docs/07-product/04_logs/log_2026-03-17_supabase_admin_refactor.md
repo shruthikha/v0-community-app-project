@@ -9,8 +9,8 @@ Initial research and planning for issue #223. Identified the root cause of the "
 
 ### Actions Taken
 1. **Database Migration**: Applied SQL migration to `tenants` table adding `address` column to both Dev and Prod environments.
-2. **Root Cause Analysis**: traced the error to inconsistent manual Supabase client initialization in `create-auth-user-action.ts`.
-2. **Impact Mapping**: Identified four files that need refactoring to use the centralized `createAdminClient` utility.
+2. **Root Cause Analysis**: Traced the error to inconsistent manual Supabase client initialization in `create-auth-user-action.ts`.
+3. **Impact Mapping**: Identified four files that need refactoring to use the centralized `createAdminClient` utility.
 3. **Sprint Alignment**: Updated the Sprint 7 PRD (`prd_2026-03-13_sprint_7_rio_technical_spike.md`) to include issue #223.
 4. **Documentation**: Created requirement file `requirements_2026-03-17_supabase_admin_refactor.md`.
 5. **Planning**: Updated the implementation plan with specific code changes and verification steps.
@@ -44,3 +44,8 @@ Standardized invitation flow and hardened security protocols. Safe to merge PR #
 2. **PII Redaction**: Implemented email masking in security audit logs.
 3. **Data Minimization**: Reduced client-facing resident payload.
 4. **Header Cleanup**: Resolved MD024 markdown linting issues.
+
+## Phase 10: Cascading ID Updates (CodeRabbit Fix)
+1. **Cascading FKs**: Applied migration `20260317070000_enable_cascading_user_id_updates.sql` to Dev and Prod.
+2. **Atomic Integrity**: Verified that `users.id` updates now propagate to related records (notifications, comments) without blocking.
+3. **Verification**: Verified successful signup and login in Dev with existing notifications.

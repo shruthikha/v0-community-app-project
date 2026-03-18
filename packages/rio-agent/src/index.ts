@@ -5,6 +5,9 @@ import { streamSSE } from "hono/streaming";
 import { createHash } from "crypto";
 import { z } from "zod";
 import { rioAgent, memory } from "./agents/rio-agent.js";
+import { ThreadStore } from "./lib/thread-store.js";
+
+const threadStore = new ThreadStore(memory);
 
 /**
  * RioAgent Service — native Mastra implementation.
@@ -104,11 +107,11 @@ export const mastra = new Mastra({
 
                     // Sync thread metadata to ensure RLS columns are populated via DB trigger
                     try {
-                        const thread = await memory.getThreadById({ threadId: effectiveThreadId });
+                        const thread = await threadStore.getThreadById(tenantId as string, effectiveThreadId);
                         console.log(`[RIO-AGENT] Existing thread found: ${!!thread} (maskedId=${maskId(effectiveThreadId)})`);
 
                         if (thread) {
-                            // PR Feedback (r2943050031): Reject mismatched thread ownership
+                            // PR Feedback: Reject mismatched thread ownership (tenant-level and resident-level isolation)
                             const existingTenantId = thread.metadata?.tenantId;
                             const existingUserId = thread.metadata?.userId;
 
@@ -122,9 +125,10 @@ export const mastra = new Mastra({
                                 return c.json({ error: "Access denied: thread belongs to different user" }, 403);
                             }
 
+                            // Missing metadata (should be rare with new ThreadStore, but handle legacy)
                             if (!existingTenantId || !existingUserId) {
                                 console.log(`[RIO-AGENT] Backfilling thread metadata for: ${maskId(effectiveThreadId)}`);
-                                await memory.updateThread({
+                                await threadStore.updateThread(tenantId as string, effectiveThreadId, {
                                     id: effectiveThreadId,
                                     title: thread.title || "New Thread",
                                     metadata: { ...thread.metadata, tenantId, userId },
@@ -132,10 +136,11 @@ export const mastra = new Mastra({
                             }
                         } else {
                             console.log(`[RIO-AGENT] Creating new thread: ${maskId(effectiveThreadId)}`);
-                            await memory.createThread({
+                            await threadStore.createThread({
                                 threadId: effectiveThreadId,
                                 resourceId: resourceId || "rio-chat",
-                                metadata: { tenantId, userId },
+                                tenantId: tenantId as string,
+                                userId: userId as string,
                             });
                         }
                     } catch (e) {
@@ -148,7 +153,7 @@ export const mastra = new Mastra({
                     console.log(`[RIO-AGENT] Starting stream for thread: ${maskId(effectiveThreadId)}`);
                     const result = await rioAgent.stream(messages, {
                         memory: {
-                            thread: effectiveThreadId,
+                            thread: threadStore.generateTenantThreadId(tenantId as string, effectiveThreadId),
                             resource: "rio-chat",
                             metadata: { tenantId, userId },
                         } as any,
