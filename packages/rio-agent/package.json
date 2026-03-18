@@ -8,13 +8,17 @@
         "dev": "mastra dev -d src",
         "build": "mastra build -s -d src",
         "start": "MASTRA_STUDIO_PATH=.mastra/output/studio node .mastra/output/index.mjs",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "seed": "tsx --env-file=.env src/scripts/seed-embeddings.ts",
+        "validate": "tsx --env-file=.env src/scripts/validate-embeddings.ts"
     },
     "dependencies": {
+        "@ai-sdk/openai": "^3.0.41",
         "@mastra/core": "^1.13.2",
         "@mastra/hono": "^1.2.4",
         "@mastra/memory": "^1.8.2",
         "@mastra/pg": "^1.8.0",
+        "@mastra/rag": "^2.1.2",
         "zod": "3.25.76"
     },
     "overrides": {

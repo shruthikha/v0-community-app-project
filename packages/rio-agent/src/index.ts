@@ -1,5 +1,5 @@
 import { Mastra } from "@mastra/core";
-import { PostgresStore } from "@mastra/pg";
+import { PostgresStore, PgVector } from "@mastra/pg";
 import { registerApiRoute } from "@mastra/core/server";
 import { streamSSE } from "hono/streaming";
 import { createHash } from "crypto";
@@ -49,6 +49,18 @@ export const mastra = new Mastra({
         id: "rio-storage",
         connectionString,
     }),
+    vectors: {
+        "rio-vector": new PgVector({
+            id: "rio-vector",
+            connectionString,
+            tableName: "rio_document_chunks",
+            schemaName: "public",
+        }),
+        "rio_embeddings": new PgVector({
+            id: "rio_embeddings",
+            connectionString,
+        }),
+    },
     agents: {
         "rio-agent": rioAgent,
     },
