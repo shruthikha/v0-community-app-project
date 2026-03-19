@@ -12,7 +12,7 @@ const openrouter = createOpenAI({
 /**
  * google/gemini-embedding-001 via OpenRouter.
  */
-export const embeddingModel = openrouter.embedding('google/gemini-embedding-001');
+export const embeddingModel: EmbeddingModel = openrouter.embedding('google/gemini-embedding-001');
 
 export async function generateEmbedding(text: string): Promise<number[]> {
     const { embedding } = await embed({

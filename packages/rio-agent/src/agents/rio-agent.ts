@@ -2,6 +2,7 @@ import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { PostgresStore } from "@mastra/pg";
 
+export const RIO_MODEL_ID = "openai/gpt-4o-mini";
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 const connectionString = process.env.RIO_DATABASE_URL;
 
@@ -39,7 +40,7 @@ export const rioAgent = new Agent({
     // Sprint 0 stub: OpenAICompatibleConfig pointing at OpenRouter.
     // Full production wiring (OPENROUTER_API_KEY, tenant tools) in Sprint 8.
     model: {
-        id: "openai/gpt-4o-mini" as `${string}/${string}`,
+        id: RIO_MODEL_ID as `${string}/${string}`,
         url: "https://openrouter.ai/api/v1",
         apiKey: openRouterApiKey ?? "stub-key",
     },

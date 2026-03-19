@@ -17,7 +17,9 @@
         "@mastra/core": "^1.13.2",
         "@mastra/hono": "^1.2.4",
         "@mastra/memory": "^1.8.2",
+        "@mastra/observability": "^1.5.0",
         "@mastra/pg": "^1.8.0",
+        "@mastra/posthog": "^1.0.8",
         "@mastra/rag": "^2.1.2",
         "zod": "3.25.76"
     },

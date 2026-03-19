@@ -4,8 +4,13 @@ import { registerApiRoute } from "@mastra/core/server";
 import { streamSSE } from "hono/streaming";
 import { createHash } from "crypto";
 import { z } from "zod";
-import { rioAgent, memory } from "./agents/rio-agent.js";
+import { rioAgent, memory, RIO_MODEL_ID } from "./agents/rio-agent.js";
 import { ThreadStore } from "./lib/thread-store.js";
+import { PosthogExporter } from "@mastra/posthog";
+import { Observability, SensitiveDataFilter } from "@mastra/observability";
+
+import { PatternRedactor } from "./lib/pattern-redactor.js";
+import { sha256 } from "./lib/sha256.js";
 
 const threadStore = new ThreadStore(memory);
 
@@ -64,6 +69,31 @@ export const mastra = new Mastra({
     agents: {
         "rio-agent": rioAgent,
     },
+    observability: new Observability({
+        configs: {
+            posthog: {
+                serviceName: "rio-agent",
+                exporters: [
+                    new PosthogExporter({
+                        apiKey: process.env.POSTHOG_API_KEY,
+                        host: process.env.POSTHOG_HOST,
+                    }),
+                ],
+                spanOutputProcessors: [
+                    new PatternRedactor(),
+                    new SensitiveDataFilter({
+                        sensitiveFields: [
+                            "email",
+                            "phoneNumber",
+                            "dateOfBirth",
+                            "name",
+                            "address",
+                        ],
+                    }),
+                ],
+            },
+        },
+    }),
     server: {
         port: (() => {
             const port = Number(process.env.PORT) || 3001;
@@ -118,8 +148,9 @@ export const mastra = new Mastra({
                     }
 
                     // Sync thread metadata to ensure RLS columns are populated via DB trigger
+                    let thread;
                     try {
-                        const thread = await threadStore.getThreadById(tenantId as string, effectiveThreadId);
+                        thread = await threadStore.getThreadById(tenantId as string, effectiveThreadId);
                         console.log(`[RIO-AGENT] Existing thread found: ${!!thread} (maskedId=${maskId(effectiveThreadId)})`);
 
                         if (thread) {
@@ -161,13 +192,24 @@ export const mastra = new Mastra({
                         return c.json({ error: "Unable to verify thread ownership" }, 500);
                     }
 
+                    const hashedUserId = maskId(userId);
+                    const hashedTenantId = maskId(tenantId);
+
                     // Mastra v1.x .stream() returns a MastraModelOutput object
                     console.log(`[RIO-AGENT] Starting stream for thread: ${maskId(effectiveThreadId)}`);
                     const result = await rioAgent.stream(messages, {
                         memory: {
                             thread: threadStore.generateTenantThreadId(tenantId as string, effectiveThreadId),
                             resource: "rio-chat",
-                            metadata: { tenantId, userId },
+                            metadata: {
+                                ...(thread?.metadata || {}),
+                                tenantId: tenantId,
+                                userId: userId,
+                                tenant_id_hash: sha256(tenantId as string),
+                                user_id_hash: sha256(userId as string),
+                                model: RIO_MODEL_ID,
+                                sprint: "7",
+                            },
                         } as any,
                         // PR Feedback (r2943050035): propagating abort signal
                         abortSignal: c.req.raw.signal,
