@@ -19,27 +19,24 @@ export class PatternRedactor implements SpanOutputProcessor {
     /**
      * Process a span by scanning its fields for sensitive patterns.
      * 
-     * @param span - The input span to redact
-     * @returns A new span with sensitive values replaced by [REDACTED]
+     * @param span - The input span to redact (mutated in-place)
+     * @returns The same span instance with sensitive values redacted.
      */
     process(span: AnySpan): AnySpan {
-        // We create a shallow copy first. Deep copy is handled by recursive redaction of fields.
-        const redactedSpan = { ...span };
-
-        if (redactedSpan.attributes) {
-            redactedSpan.attributes = this.deepRedact(redactedSpan.attributes) as any;
+        if (span.attributes) {
+            span.attributes = this.deepRedact(span.attributes) as any;
         }
-        if (redactedSpan.metadata) {
-            redactedSpan.metadata = this.deepRedact(redactedSpan.metadata);
+        if (span.metadata) {
+            span.metadata = this.deepRedact(span.metadata);
         }
-        if (redactedSpan.input) {
-            redactedSpan.input = this.deepRedact(redactedSpan.input);
+        if (span.input) {
+            span.input = this.deepRedact(span.input);
         }
-        if (redactedSpan.output) {
-            redactedSpan.output = this.deepRedact(redactedSpan.output);
+        if (span.output) {
+            span.output = this.deepRedact(span.output);
         }
 
-        return redactedSpan;
+        return span;
     }
 
     /**

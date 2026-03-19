@@ -39,6 +39,12 @@ type Tenant = {
       green_area?: boolean
       recreational_zone?: boolean
     }
+    rio?: {
+      enabled: boolean
+      rag: boolean
+      memory: boolean
+      actions: boolean
+    }
   }
   events_enabled?: boolean
   checkins_enabled?: boolean
@@ -220,6 +226,12 @@ export default function TenantFeaturesForm({ tenant }: { tenant: Tenant }) {
       green_area: true,
       recreational_zone: true,
     },
+    rio: {
+      enabled: false,
+      rag: false,
+      memory: false,
+      actions: false,
+    },
   }
 
   const [features, setFeatures] = useState<{
@@ -252,6 +264,12 @@ export default function TenantFeaturesForm({ tenant }: { tenant: Tenant }) {
       public_street?: boolean
       green_area?: boolean
       recreational_zone?: boolean
+    }
+    rio?: {
+      enabled: boolean
+      rag: boolean
+      memory: boolean
+      actions: boolean
     }
   }>({
     ...defaultFeatures,
@@ -395,7 +413,18 @@ export default function TenantFeaturesForm({ tenant }: { tenant: Tenant }) {
     setLoading(true)
 
     try {
-      const { events, checkins, exchange, requests, announcements, documents, reservations, access_requests, ...otherFeatures } = features
+      const {
+        events,
+        checkins,
+        exchange,
+        requests,
+        announcements,
+        documents,
+        reservations,
+        access_requests,
+        rio,
+        ...otherFeatures
+      } = features
 
       const wasEventsEnabled = tenant.events_enabled ?? false
       const willEnableEvents = !wasEventsEnabled && (events ?? false)
@@ -406,7 +435,6 @@ export default function TenantFeaturesForm({ tenant }: { tenant: Tenant }) {
       const { error } = await supabase
         .from("tenants")
         .update({
-          features: otherFeatures,
           resident_visibility_scope: visibilityScope,
           events_enabled: events ?? false,
           checkins_enabled: checkins ?? false,
@@ -416,6 +444,10 @@ export default function TenantFeaturesForm({ tenant }: { tenant: Tenant }) {
           documents_enabled: documents ?? true,
           reservations_enabled: reservations ?? false,
           access_requests_enabled: access_requests ?? true,
+          features: {
+            ...otherFeatures,
+            rio: rio || { enabled: false, rag: false, memory: false, actions: false }
+          }
         })
         .eq("id", tenant.id)
 
@@ -596,6 +628,38 @@ export default function TenantFeaturesForm({ tenant }: { tenant: Tenant }) {
               </div>
             </div>
           )}
+        </div>
+
+        <div className="space-y-4 pt-4 border-t">
+          <div className="flex items-center justify-between space-x-4">
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider text-amber-600">AI & Assistant (Beta)</h3>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full border border-amber-200">INTERNAL ONLY</span>
+              </div>
+              <Label htmlFor="rio-enabled" className="text-base font-medium">
+                Río AI (Beta)
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Enable the persistent AI assistant. Includes document-based retrieval (RAG) and user memory capabilities. Actions/Tools are currently disabled.
+              </p>
+            </div>
+            <Switch
+              id="rio-enabled"
+              checked={features.rio?.enabled ?? false}
+              onCheckedChange={(checked) => {
+                setFeatures(prev => ({
+                  ...prev,
+                  rio: {
+                    enabled: checked,
+                    rag: checked,
+                    memory: checked,
+                    actions: false
+                  }
+                }))
+              }}
+            />
+          </div>
         </div>
 
         <div className="space-y-4 pt-4 border-t">

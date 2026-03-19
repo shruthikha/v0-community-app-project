@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react"
 import { createBrowserClient } from "@/lib/supabase/client"
 
+type RioFeatures = {
+  enabled: boolean
+  rag: boolean
+  memory: boolean
+  actions: boolean
+}
+
 type TenantFeatures = {
   neighborhoods?: boolean
   interests?: boolean
@@ -13,6 +20,7 @@ type TenantFeatures = {
   journey_stages?: boolean
   onboarding?: boolean
   map?: boolean
+  rio?: RioFeatures
   location_types?: {
     facility?: boolean
     lot?: boolean
@@ -28,6 +36,13 @@ type TenantFeatures = {
   }
 }
 
+const RIO_DEFAULTS: RioFeatures = {
+  enabled: false,
+  rag: false,
+  memory: false,
+  actions: false
+}
+
 export function useTenantFeatures(tenantId: string) {
   const [features, setFeatures] = useState<TenantFeatures>({
     neighborhoods: true,
@@ -39,6 +54,7 @@ export function useTenantFeatures(tenantId: string) {
     journey_stages: true,
     onboarding: true,
     map: true,
+    rio: RIO_DEFAULTS,
     location_types: {
       facility: true,
       lot: true,
@@ -69,9 +85,13 @@ export function useTenantFeatures(tenantId: string) {
     fetchFeatures()
   }, [tenantId])
 
-  const hasFeature = (feature: keyof TenantFeatures) => {
+  const hasFeature = (feature: keyof Omit<TenantFeatures, 'rio'>) => {
     return features[feature] ?? true
   }
 
-  return { features, hasFeature, loading }
+  const hasRioFeature = (feature: keyof RioFeatures) => {
+    return features.rio?.[feature] ?? false // Fail-closed
+  }
+
+  return { features, hasFeature, hasRioFeature, loading }
 }

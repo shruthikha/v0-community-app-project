@@ -83,8 +83,10 @@ export default async function ResidentDashboardLayout({
     .eq("tenant_id", tenant.id)
     .order("name")
 
+  const rioEnabled = tenant.features?.rio?.enabled ?? false
+
   return (
-    <RioFeedbackProvider>
+    <RioFeedbackProvider enabled={rioEnabled}>
       <UserJotProvider
         projectId="cmisww1o00lpk15lbili7uxmo"
         user={

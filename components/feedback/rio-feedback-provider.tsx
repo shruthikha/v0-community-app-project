@@ -23,14 +23,15 @@ interface RioFeedbackContextType {
 
 const RioFeedbackContext = createContext<RioFeedbackContextType | undefined>(undefined)
 
-export function RioFeedbackProvider({ children }: { children: React.ReactNode }) {
+export function RioFeedbackProvider({ children, enabled = true }: { children: React.ReactNode; enabled?: boolean }) {
     const [isOpen, setIsOpen] = useState(false)
     const [options, setOptions] = useState<RioFeedbackOptions | null>(null)
 
     const showFeedback = useCallback((newOptions: RioFeedbackOptions) => {
+        if (!enabled) return
         setOptions(newOptions)
         setIsOpen(true)
-    }, [])
+    }, [enabled])
 
     const hideFeedback = useCallback(() => {
         setIsOpen(false)
@@ -39,7 +40,7 @@ export function RioFeedbackProvider({ children }: { children: React.ReactNode })
     return (
         <RioFeedbackContext.Provider value={{ showFeedback, hideFeedback }}>
             {children}
-            {options && (
+            {enabled && options && (
                 <RioFeedbackModal
                     open={isOpen}
                     onOpenChange={setIsOpen}

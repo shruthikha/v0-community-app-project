@@ -10,7 +10,8 @@
         "start": "MASTRA_STUDIO_PATH=.mastra/output/studio node .mastra/output/index.mjs",
         "typecheck": "tsc --noEmit",
         "seed": "tsx --env-file=.env src/scripts/seed-embeddings.ts",
-        "validate": "tsx --env-file=.env src/scripts/validate-embeddings.ts"
+        "validate": "tsx --env-file=.env src/scripts/validate-embeddings.ts",
+        "test:isolation": "tsx --env-file=.env node_modules/vitest/vitest.mjs run src/tests/chunk-isolation.test.ts"
     },
     "dependencies": {
         "@ai-sdk/openai": "^3.0.41",
