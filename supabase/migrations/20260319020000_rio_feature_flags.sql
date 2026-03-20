@@ -1,3 +1,7 @@
+-- Migration: Río Feature Flags
+-- Description: Initializes Rio feature block in the tenants table.
+-- Timestamp: 20260319020000
+
 -- 1. Backfill: Add rio flags to all existing tenants (fail-closed)
 UPDATE tenants
 SET features = jsonb_set(

@@ -19,8 +19,6 @@ VALUES (
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- 3. Policy: Tenant Isolation for Rio Documents
--- Pattern: First folder in path must match the tenant_id from the user's JWT.
--- Requirement: Only users with role = 'tenant_admin' can access.
 DROP POLICY IF EXISTS "Tenant Isolation: Rio Documents" ON storage.objects;
 CREATE POLICY "Tenant Isolation: Rio Documents" ON storage.objects
 FOR ALL TO authenticated

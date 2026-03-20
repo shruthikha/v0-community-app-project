@@ -1,17 +1,18 @@
--- Migration: Río S1.5 - Seed Pilot Configurations
--- Description: Seeds default Río configurations for pilot tenants (Alegria and Ecovilla San Mateo).
+-- Migration: Río Pilot Seed - Alegría and Ecovilla
+-- Description: Seeds the rio_configurations table for initial pilot tenants.
 -- Timestamp: 20260319030000
 
 INSERT INTO public.rio_configurations (
-    tenant_id,
-    prompt_community_name,
-    prompt_tone,
-    prompt_language,
-    preferred_model,
+    tenant_id, 
+    prompt_community_name, 
+    prompt_persona, 
+    prompt_language, 
+    llm_model, 
     metadata
-) VALUES 
+)
+VALUES 
 (
-    '9dfddd33-5a7c-4e5f-a1b8-fe05343b3934',
+    '65239e2f-5f80-4960-9112-706509172449',
     'Alegría Village',
     'friendly',
     'es',
