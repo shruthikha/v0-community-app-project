@@ -9,7 +9,7 @@
         "build": "mastra build -s -d src",
         "start": "MASTRA_STUDIO_PATH=.mastra/output/studio node .mastra/output/index.mjs",
         "typecheck": "tsc --noEmit",
-        "seed": "tsx --env-file=.env src/scripts/seed-embeddings.ts",
+        "seed:docs": "tsx --env-file=.env src/scripts/seed-pilot-docs.ts",
         "validate": "tsx --env-file=.env src/scripts/validate-embeddings.ts",
         "test:isolation": "tsx --env-file=.env node_modules/vitest/vitest.mjs run src/tests/chunk-isolation.test.ts"
     },
@@ -22,6 +22,8 @@
         "@mastra/pg": "^1.8.0",
         "@mastra/posthog": "^1.0.8",
         "@mastra/rag": "^2.1.2",
+        "@supabase/supabase-js": "^2.99.3",
+        "llama-parse": "^0.1.0",
         "zod": "3.25.76"
     },
     "overrides": {
@@ -29,6 +31,7 @@
     },
     "devDependencies": {
         "@types/node": "^22",
+        "@types/pg": "^8.18.0",
         "eslint": "^9",
         "mastra": "^1.3.12",
         "tsx": "^4",

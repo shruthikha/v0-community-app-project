@@ -24,10 +24,22 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
-    const { embeddings } = await embedMany({
-        model: embeddingModel,
-        values: texts,
-    });
-    // Truncate each embedding to 1536
-    return embeddings.map(e => e.slice(0, 1536));
+    const BATCH_SIZE = 50;
+    const allEmbeddings: number[][] = [];
+
+    // Process in batches of 50 for granular error handling and Gemini limits
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+        const batch = texts.slice(i, i + BATCH_SIZE);
+        console.log(`[EMBEDDINGS] Processing batch ${i / BATCH_SIZE + 1} (${batch.length} texts)`);
+
+        const { embeddings } = await embedMany({
+            model: embeddingModel,
+            values: batch,
+        });
+
+        // Truncate each embedding to 1536
+        allEmbeddings.push(...embeddings.map(e => e.slice(0, 1536)));
+    }
+
+    return allEmbeddings;
 }

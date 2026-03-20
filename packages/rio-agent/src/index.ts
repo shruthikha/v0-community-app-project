@@ -12,6 +12,8 @@ import { Observability, SensitiveDataFilter } from "@mastra/observability";
 import { PatternRedactor } from "./lib/pattern-redactor.js";
 import { sha256 } from "./lib/sha256.js";
 
+import { ingestionWorkflow } from "./workflows/ingest.js";
+
 const threadStore = new ThreadStore(memory);
 
 /**
@@ -60,14 +62,17 @@ export const mastra = new Mastra({
             connectionString,
             tableName: "rio_document_chunks",
             schemaName: "public",
-        }),
+        } as any),
         "rio_embeddings": new PgVector({
             id: "rio_embeddings",
             connectionString,
-        }),
+        } as any),
     },
     agents: {
         "rio-agent": rioAgent,
+    },
+    workflows: {
+        ingest: ingestionWorkflow,
     },
     observability: new Observability({
         configs: {
@@ -268,6 +273,43 @@ export const mastra = new Mastra({
                         NODE_ENV: process.env.NODE_ENV || "not set",
                         PORT: process.env.PORT || "not set",
                     });
+                },
+            }),
+            /**
+             * Issue #192: Ingestion Trigger Endpoint
+             * Receives the trigger from the Vercel BFF and kicks off the workflow.
+             * (Note: Full logic deferred to #187-#191; this is the plumbing stub).
+             */
+            registerApiRoute("/ingest", {
+                method: "POST",
+                requiresAuth: false,
+                handler: async (c) => {
+                    const body = await c.req.json().catch(() => ({}));
+                    const { documentId, tenantId } = body;
+
+                    if (!documentId || !tenantId) {
+                        return c.json({ error: "documentId and tenantId are required" }, 400);
+                    }
+
+                    console.log(`[RIO-AGENT] INGEST TRIGGER: tenantId=${maskId(tenantId)}, documentId=${maskId(documentId)}`);
+
+                    // Execute the ingestion workflow asynchronously
+                    // We don't await it here to return 202 Accepted immediately
+                    const workflow = mastra.getWorkflow("ingest");
+                    workflow.createRun()
+                        .then(run => run.start({ inputData: { documentId } }))
+                        .then(result => {
+                            if (result.status === 'failed') {
+                                console.error(`[RIO-AGENT] Ingestion workflow failed for ${documentId}:`, result.error);
+                            } else {
+                                console.log(`[RIO-AGENT] Ingestion workflow completed for ${documentId}`);
+                            }
+                        })
+                        .catch((err: any) => {
+                            console.error(`[RIO-AGENT] Ingestion workflow engine error for ${documentId}:`, err);
+                        });
+
+                    return c.json({ status: "queued", message: "Ingestion workflow started" }, 202);
                 },
             }),
         ],
