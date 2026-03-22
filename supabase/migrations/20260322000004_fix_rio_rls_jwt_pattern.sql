@@ -94,33 +94,33 @@ CREATE POLICY "Rio: tenant member read rio_document_chunks"
         tenant_id IN (SELECT users.tenant_id FROM public.users WHERE users.id = auth.uid())
     );
 
--- rio_threads: scoped to the tenant member
+-- rio_threads: scoped to the individual user (PR Feedback: user-level isolation)
 CREATE POLICY "Rio: tenant member access rio_threads"
     ON public.rio_threads FOR ALL TO authenticated
     USING (
         tenant_id IN (SELECT users.tenant_id FROM public.users WHERE users.id = auth.uid())
+        AND user_id = auth.uid()
     )
     WITH CHECK (
         tenant_id IN (SELECT users.tenant_id FROM public.users WHERE users.id = auth.uid())
+        AND user_id = auth.uid()
     );
 
--- rio_messages: accessible if the parent thread belongs to the same tenant
-CREATE POLICY "Rio: tenant member access rio_messages"
+-- rio_messages: scoped to the thread owner
+CREATE POLICY "Rio: thread owner access rio_messages"
     ON public.rio_messages FOR ALL TO authenticated
     USING (
         EXISTS (
             SELECT 1 FROM public.rio_threads rt
-            JOIN public.users u ON u.id = auth.uid()
             WHERE rt.id = rio_messages.thread_id
-            AND rt.tenant_id = u.tenant_id
+            AND rt.user_id = auth.uid()
         )
     )
     WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.rio_threads rt
-            JOIN public.users u ON u.id = auth.uid()
             WHERE rt.id = rio_messages.thread_id
-            AND rt.tenant_id = u.tenant_id
+            AND rt.user_id = auth.uid()
         )
     );
 

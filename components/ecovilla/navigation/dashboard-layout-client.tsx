@@ -22,6 +22,7 @@ interface DashboardLayoutClientProps {
     tenantId: string
     categories: Array<{ id: string; name: string }>
     neighborhoods: Array<{ id: string; name: string }>
+    rioEnabled?: boolean
 }
 
 export function DashboardLayoutClient({
@@ -33,6 +34,7 @@ export function DashboardLayoutClient({
     tenantId,
     categories,
     neighborhoods,
+    rioEnabled = false,
 }: DashboardLayoutClientProps) {
     const [isCollapsed, setIsCollapsed] = useState(false)
 
@@ -60,6 +62,7 @@ export function DashboardLayoutClient({
                     tenantId={tenantId}
                     categories={categories}
                     neighborhoods={neighborhoods}
+                    rioEnabled={rioEnabled}
                 />
 
                 {/* Desktop Navigation (>= 768px) */}
@@ -90,6 +93,7 @@ export function DashboardLayoutClient({
                     tenantId={tenantId}
                     categories={categories}
                     neighborhoods={neighborhoods}
+                    rioEnabled={rioEnabled}
                 />
             </div>
         </LanguageProvider>

@@ -20,9 +20,10 @@ interface MobileNavProps {
     tenantId: string
     categories: Array<{ id: string; name: string }>
     neighborhoods: Array<{ id: string; name: string }>
+    rioEnabled?: boolean
 }
 
-export function MobileNav({ tenantSlug, user, tenantId, categories, neighborhoods }: MobileNavProps) {
+export function MobileNav({ tenantSlug, user, tenantId, categories, neighborhoods, rioEnabled = false }: MobileNavProps) {
     return (
         <div className="md:hidden">
             <MobileTopBar tenantSlug={tenantSlug} user={user} />
@@ -33,6 +34,7 @@ export function MobileNav({ tenantSlug, user, tenantId, categories, neighborhood
                 tenantId={tenantId}
                 categories={categories}
                 neighborhoods={neighborhoods}
+                rioEnabled={rioEnabled}
             />
         </div>
     )

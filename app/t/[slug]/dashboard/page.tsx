@@ -141,6 +141,7 @@ export default async function ResidentDashboardPage({ params }: { params: Promis
   }
   const mergedFeatures = { ...defaultFeatures, ...(tenant?.features || {}) }
   const mapEnabled = mergedFeatures.map === true
+  const rioEnabled = mergedFeatures.rio?.enabled === true
   const reservationsEnabled = tenant?.reservations_enabled === true
 
   let lotLocationId: string | undefined
@@ -194,7 +195,7 @@ export default async function ResidentDashboardPage({ params }: { params: Promis
         <div className="lg:order-1">
           {/* Spacer to align with "What's Next" title on large screens */}
           <h3 className="text-lg font-semibold mb-3 invisible hidden lg:block" aria-hidden="true">Spacer</h3>
-          <RioWelcomeCard slug={slug} />
+          {rioEnabled && <RioWelcomeCard slug={slug} />}
         </div>
 
         {/* Mobile Order: 2 (What's Next) | Desktop: Right Column */}

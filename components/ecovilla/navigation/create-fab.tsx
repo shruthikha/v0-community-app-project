@@ -9,9 +9,10 @@ interface CreateFabProps {
     tenantId: string
     categories: Array<{ id: string; name: string }>
     neighborhoods: Array<{ id: string; name: string }>
+    rioEnabled?: boolean
 }
 
-export function CreateFab({ tenantSlug, tenantId, categories, neighborhoods }: CreateFabProps) {
+export function CreateFab({ tenantSlug, tenantId, categories, neighborhoods, rioEnabled = false }: CreateFabProps) {
     const [open, setOpen] = useState(false)
 
     return (
@@ -23,6 +24,7 @@ export function CreateFab({ tenantSlug, tenantId, categories, neighborhoods }: C
                 tenantId={tenantId}
                 categories={categories}
                 neighborhoods={neighborhoods}
+                rioEnabled={rioEnabled}
                 side="left"
                 align="end"
             >

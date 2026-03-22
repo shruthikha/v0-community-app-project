@@ -14,9 +14,10 @@ interface MobileDockProps {
     tenantId: string
     categories: Array<{ id: string; name: string }>
     neighborhoods: Array<{ id: string; name: string }>
+    rioEnabled?: boolean
 }
 
-export function MobileDock({ tenantSlug, unreadEvents, tenantId, categories, neighborhoods }: MobileDockProps) {
+export function MobileDock({ tenantSlug, unreadEvents, tenantId, categories, neighborhoods, rioEnabled = false }: MobileDockProps) {
     const pathname = usePathname()
     const [openCreate, setOpenCreate] = useState(false)
 
@@ -72,6 +73,7 @@ export function MobileDock({ tenantSlug, unreadEvents, tenantId, categories, nei
                                 tenantId={tenantId}
                                 categories={categories}
                                 neighborhoods={neighborhoods}
+                                rioEnabled={rioEnabled}
                                 side="top"
                                 align="center"
                             >

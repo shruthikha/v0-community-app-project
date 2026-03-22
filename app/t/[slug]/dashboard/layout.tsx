@@ -83,7 +83,8 @@ export default async function ResidentDashboardLayout({
     .eq("tenant_id", tenant.id)
     .order("name")
 
-  const rioEnabled = tenant.features?.rio?.enabled ?? false
+  const rioConfig = tenant.features?.rio
+  const rioEnabled = (rioConfig?.enabled && rioConfig?.rag) ?? false
 
   return (
     <RioFeedbackProvider enabled={rioEnabled}>
@@ -109,6 +110,7 @@ export default async function ResidentDashboardLayout({
           tenantId={tenant.id}
           categories={categories || []}
           neighborhoods={neighborhoods || []}
+          rioEnabled={rioEnabled}
         >
           {children}
         </DashboardLayoutClient>

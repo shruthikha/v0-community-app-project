@@ -87,7 +87,7 @@ export function IngestionStatusBadge({
         )
     }
 
-    if (status === "error" || hasError) {
+    if ((status === "error" || hasError) && status !== "pending" && status !== "processing") {
         return (
             <Badge
                 variant="destructive"

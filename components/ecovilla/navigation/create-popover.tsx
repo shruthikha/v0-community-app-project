@@ -23,6 +23,7 @@ interface CreatePopoverProps {
     tenantId: string
     categories: Array<{ id: string; name: string }>
     neighborhoods: Array<{ id: string; name: string }>
+    rioEnabled?: boolean
     children: React.ReactNode
     align?: "center" | "end" | "start"
     side?: "top" | "bottom" | "left" | "right"
@@ -35,6 +36,7 @@ export function CreatePopover({
     tenantId,
     categories,
     neighborhoods,
+    rioEnabled = false,
     children,
     align = "center",
     side = "top"
@@ -56,6 +58,15 @@ export function CreatePopover({
             bgColor: "bg-sunrise-soft",
             borderColor: "border-sunrise-soft",
         },
+        ...(rioEnabled ? [{
+            icon: Smile, // Or a chatbot icon if available
+            title: "Chat with Río",
+            description: "AI Assistant",
+            href: `/t/${tenantSlug}/dashboard/rio`,
+            color: "text-forest-canopy",
+            bgColor: "bg-forest-soft",
+            borderColor: "border-forest-gentle",
+        }] : []),
         {
             icon: MapPin,
             title: "Check-in",

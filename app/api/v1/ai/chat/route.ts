@@ -16,7 +16,7 @@ import { errorResponse } from '@/lib/api/response'
  */
 export async function POST(req: NextRequest) {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
+    const totalTimeoutId = setTimeout(() => controller.abort(), 30000) // 30s Total Tier
 
     try {
         // 1. Authenticate and extract tenant
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
 
         if (authError || !user) {
-            clearTimeout(timeoutId)
+            clearTimeout(totalTimeoutId)
             return NextResponse.json(
                 { success: false, error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } },
                 { status: 401 }
@@ -32,41 +32,126 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json().catch(() => ({}))
-        const tenantId = body.tenantId || user.app_metadata?.tenant_id
 
-        if (!tenantId) {
-            clearTimeout(timeoutId)
+        // 1.1 Integrity Check: Do not trust body.tenantId if it differs from user session metadata
+        const sessionTenantId = user.app_metadata?.tenant_id
+        const requestedTenantId = body.tenantId || sessionTenantId
+
+        if (!requestedTenantId) {
+            clearTimeout(totalTimeoutId)
             return NextResponse.json(
-                { success: false, error: { message: 'Tenant ID required', code: 'BAD_REQUEST' } },
+                { success: false, error: { message: 'Tenant context required', code: 'BAD_REQUEST' } },
                 { status: 400 }
+            )
+        }
+
+        // SECURITY: If requestedTenantId is provided and differs from session, verify impersonation isn't happening
+        // (Unless they are a super_admin, which we could check here, but standard residents must match)
+        if (requestedTenantId !== sessionTenantId) {
+            clearTimeout(totalTimeoutId)
+            console.error(`[API/v1/ai/chat] SECURITY: User ${user.id} (Tenant ${sessionTenantId}) attempted to access Tenant ${requestedTenantId}`)
+            return NextResponse.json(
+                { success: false, error: { message: 'Mismatched tenant context', code: 'FORBIDDEN' } },
+                { status: 403 }
+            )
+        }
+
+        // 1.2 Check Feature Flags (Dual-Flag Gate)
+        const { data: tenant, error: tenantError } = await supabase
+            .from('tenants')
+            .select('features')
+            .eq('id', requestedTenantId)
+            .single()
+
+        const rioConfig = tenant?.features?.rio
+        const isRioFullyEnabled = rioConfig?.enabled && rioConfig?.rag
+
+        if (tenantError || !isRioFullyEnabled) {
+            clearTimeout(totalTimeoutId)
+            console.warn(`[API/v1/ai/chat] Access denied for tenant ${requestedTenantId}: Rio or RAG disabled`)
+            return NextResponse.json(
+                { success: false, error: { message: 'Río AI or RAG is not enabled for this community', code: 'FORBIDDEN' } },
+                { status: 403 }
             )
         }
 
         const messages = body.messages || []
         const threadId = body.threadId
-        const resourceId = body.resourceId || tenantId
+        const resourceId = body.resourceId || requestedTenantId
+        const idempotencyKey = body.idempotencyKey || `chat-${user.id}-${Date.now()}`
 
-        // 2. Forward to Railway
+        // 2. Forward to Railway with Tiered Timeout and Retry
         const railwayUrl = process.env.RIO_RAILWAY_URL || process.env.RIO_AGENT_URL || 'http://localhost:3001'
 
-        const response = await fetch(`${railwayUrl}/api/chat`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-tenant-id': tenantId,
-                'x-user-id': user.id
-            },
-            body: JSON.stringify({
-                messages,
-                threadId,
-                resourceId
-            }),
-            signal: controller.signal
-        })
+        let response: Response | null = null
+        let attempts = 0
+        const MAX_ATTEMPTS = 2
 
-        clearTimeout(timeoutId)
+        while (attempts < MAX_ATTEMPTS) {
+            attempts++
+            const connectionController = new AbortController()
+            const connectionTimeout = setTimeout(() => connectionController.abort(), 15000) // 15s Tier 1
 
-        if (!response.ok || !response.body) {
+            try {
+                // Link both signals: if either the 15s connection timeout OR the 30s total timeout fires, abort.
+                // Note: AbortSignal.any is available in Node 18.16+ and modern browsers.
+                const linkedSignal = (AbortSignal as any).any
+                    ? (AbortSignal as any).any([controller.signal, connectionController.signal])
+                    : connectionController.signal
+
+                response = await fetch(`${railwayUrl}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-tenant-id': requestedTenantId,
+                        'x-user-id': user.id,
+                        'x-idempotency-key': idempotencyKey
+                    },
+                    body: JSON.stringify({
+                        messages,
+                        threadId,
+                        resourceId
+                    }),
+                    signal: linkedSignal
+                })
+                clearTimeout(connectionTimeout)
+                if (response.ok) break
+
+                // If not OK but not a timeout, we might not want to retry depending on status
+                if (response.status >= 500 && attempts < MAX_ATTEMPTS) {
+                    console.warn(`[API/v1/ai/chat] Attempt ${attempts} failed with ${response.status}, retrying...`)
+                    // Wait for the next attempt only if we have time left
+                    await new Promise(resolve => setTimeout(resolve, 500))
+                    continue
+                }
+                break
+            } catch (err) {
+                clearTimeout(connectionTimeout)
+                if (err instanceof Error && err.name === 'AbortError') {
+                    // If the TOTAL timeout fired, don't retry
+                    if (controller.signal.aborted) {
+                        console.error(`[API/v1/ai/chat] Total 30s timeout reached, aborting retries.`)
+                        break
+                    }
+                    if (attempts < MAX_ATTEMPTS) {
+                        console.warn(`[API/v1/ai/chat] Attempt ${attempts} connection timed out (15s), retrying...`)
+                        continue
+                    }
+                }
+                throw err
+            }
+        }
+
+        clearTimeout(totalTimeoutId)
+
+        if (!response || !response.ok || !response.body) {
+            // Enhanced error reporting for the "Busy" state
+            if (response?.status === 504 || response?.status === 503 || !response) {
+                return NextResponse.json(
+                    { success: false, error: { message: 'Busy', code: 'GATEWAY_TIMEOUT' } },
+                    { status: 504 }
+                )
+            }
             throw new Error(`Railway agent returned ${response.status}`)
         }
 
@@ -154,11 +239,11 @@ export async function POST(req: NextRequest) {
         })
 
     } catch (error) {
-        clearTimeout(timeoutId)
+        clearTimeout(totalTimeoutId)
         if (error instanceof Error && error.name === 'AbortError') {
             console.error('[API/v1/ai/chat] Request to Railway timed out after 30s')
             return NextResponse.json(
-                { success: false, error: { message: 'Gateway Timeout connecting to AI agent', code: 'GATEWAY_TIMEOUT' } },
+                { success: false, error: { message: 'Busy', code: 'GATEWAY_TIMEOUT' } },
                 { status: 504 }
             )
         }

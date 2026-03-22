@@ -59,7 +59,11 @@ export async function getDocMetadata(documentId: string): Promise<RioDocument | 
 export async function claimDocument(documentId: string): Promise<RioDocument | null> {
     const { data, error } = await supabaseAdmin
         .from('rio_documents')
-        .update({ status: 'processing', updated_at: new Date().toISOString() }) // Force update timestamp
+        .update({
+            status: 'processing',
+            error_message: null,
+            updated_at: new Date().toISOString()
+        }) // Force update timestamp
         .eq('id', documentId)
         .in('status', ['ready', 'pending', 'error']) // Allow re-trying error state
         .select()

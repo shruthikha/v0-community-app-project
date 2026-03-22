@@ -3,6 +3,7 @@
 **Date**: 2026-03-20
 **Sprint**: 10 (Roadmap) / Sprint 4 (Río Naming Convention)
 **Status**: ✅ Finished — Sprint 10 Complete
+**Last Updated**: 2026-03-22 (Post-Incident Resolution)
 **Epic**: [#162 — [Epic] Río AI — Sprint 4: Admin Experience](https://github.com/mjcr88/v0-community-app-project/issues/162)
 **Blueprint**: [blueprint_rio_agent.md](../01_idea/blueprint_rio_agent.md) — Phase 3, Sprint 4
 **Lead Agents**: `backend-specialist`, `frontend-specialist`, `security-auditor`
@@ -461,7 +462,9 @@ export function containsInjection(text: string): boolean {
 ### 🏗️ Application Stability
 - **Atomic Ingestion**: Replaced race-prone ingestion triggers with atomic upserts (`upsert_rio_document_if_not_processing`) to ensure consistent document status transitions.
 - **Crash Prevention**: Resolved critical `useRouter` runtime issues in the Admin Documents table.
+- **Mastra Route Alignment**: Corrected BFF routing to use `/health` and `/ingest` (removing incorrect `/api` prefix).
 - **Validation**: Added server-side enforcement for PDF upload URLs and empty-content guards in the Mastra workflow.
+- **Incident Resolution (2026-03-22)**: Successfully debugged and resolved production RLS violations and 503/500 errors.
 
 ### ♿ Accessibility & UX
 - **Full AX Audit**: Added ARIA labels to all icon-only administrative actions.
@@ -480,4 +483,28 @@ Following an in-depth QA audit (PR #236 & #238), the following security and stab
 ### 2. Stability & Concurrency
 - **Atomic Ingestion**: Refactored the ingestion trigger to use an atomic Postgres RPC to prevent race conditions during rapid clicks.
 - **Robustness**: Added 15s/5s timeouts to all external agent proxy handoffs and empty-content guards in the Mastra workflow.
+
+---
+
+## 🛠️ Post-Incident Remediation (March 22, 2026)
+
+Following a production incident where tenant admins encountered 401 Unauthorized errors and 500 Ingestion failures, the following critical hotfixes and baseline migrations were applied to align the production state:
+
+### 1. Database Migrations (Baseline Hardening)
+
+The following migrations were applied to resolve schema gaps and RLS vulnerabilities identified during the incident response:
+
+- **[20260322000000_add_embedding_model_tracking.sql](file:///Users/mj/Developer/v0-community-app-project/supabase/migrations/20260322000000_add_embedding_model_tracking.sql)**: Added `embedding_model` column to `rio_documents` to track which model was used for each document, preventing vector dimension mismatches.
+- **[20260322000001_rio_schema_repair.sql](file:///Users/mj/Developer/v0-community-app-project/supabase/migrations/20260322000001_rio_schema_repair.sql)**: Repaired missing foreign keys and constraints on `rio_documents` to ensure data integrity during rapid ingestion cycles.
+- **[20260322000003_add_error_message_to_rio_documents.sql](file:///Users/mj/Developer/v0-community-app-project/supabase/migrations/20260322000003_add_error_message_to_rio_documents.sql)**: Formalized the `error_message` column for persistent diagnostic reporting in the Admin UI.
+- **[20260322000004_fix_rio_rls_jwt_pattern.sql](file:///Users/mj/Developer/v0-community-app-project/supabase/migrations/20260322000004_fix_rio_rls_jwt_pattern.sql)**: Hardened the RLS policies by replacing the insecure JWT metadata pattern with direct `auth.uid()` table lookups for tenant isolation.
+
+### 2. Infrastructure & Environment Fixes
+
+- **Authentication (401)**: Identified that `RIO_AGENT_KEY` was missing in the Vercel production environment. Populating this secret resolved the unauthorized handoff between the BFF and the Railway Agent.
+- **Agent Status (503/Offline)**: Corrected the health check proxy in `app/api/v1/ai/chat/health/route.ts` to strictly follow the `/health` endpoint (removing the legacy `/api` prefix), restoring the "Online" status in the Admin UI.
+- **Ingestion Handoff (500)**: Resolved by aligning the `RIO_RAILWAY_URL` in Vercel to the exact agent root, ensuring protocol consistency and certificate validation.
+
+> [!NOTE]
+> These changes are now part of the production baseline. Any new feature branches must include the migrations listed above to avoid regressions.
 
