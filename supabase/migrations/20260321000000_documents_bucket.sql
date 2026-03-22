@@ -32,9 +32,14 @@ DROP POLICY IF EXISTS "Admin Upload Access for Documents" ON storage.objects;
 CREATE POLICY "Admin Upload Access for Documents" ON storage.objects
 FOR INSERT TO authenticated
 WITH CHECK (
-  bucket_id = 'documents' AND 
-  (auth.jwt() ->> 'role') IN ('tenant_admin', 'super_admin') AND
-  (storage.foldername(name))[1] = (auth.jwt() ->> 'tenant_id')
+  bucket_id = 'documents' AND (
+    (auth.jwt() ->> 'role') = 'super_admin' OR 
+    (
+      ((auth.jwt() ->> 'role') = 'tenant_admin' OR (auth.jwt() ->> 'is_tenant_admin')::boolean) AND
+      (storage.foldername(name))[1] = (auth.jwt() ->> 'tenant_id')
+    )
+  )
+
 );
 
 -- 2.3 DELETE
@@ -43,9 +48,14 @@ DROP POLICY IF EXISTS "Admin Delete Access for Documents" ON storage.objects;
 CREATE POLICY "Admin Delete Access for Documents" ON storage.objects
 FOR DELETE TO authenticated
 USING (
-  bucket_id = 'documents' AND 
-  (auth.jwt() ->> 'role') IN ('tenant_admin', 'super_admin') AND
-  (storage.foldername(name))[1] = (auth.jwt() ->> 'tenant_id')
+  bucket_id = 'documents' AND (
+    (auth.jwt() ->> 'role') = 'super_admin' OR 
+    (
+      ((auth.jwt() ->> 'role') = 'tenant_admin' OR (auth.jwt() ->> 'is_tenant_admin')::boolean) AND
+      (storage.foldername(name))[1] = (auth.jwt() ->> 'tenant_id')
+    )
+  )
+
 );
 
 -- 2.4 UPDATE
@@ -54,9 +64,14 @@ DROP POLICY IF EXISTS "Admin Update Access for Documents" ON storage.objects;
 CREATE POLICY "Admin Update Access for Documents" ON storage.objects
 FOR UPDATE TO authenticated
 USING (
-  bucket_id = 'documents' AND 
-  (auth.jwt() ->> 'role') IN ('tenant_admin', 'super_admin') AND
-  (storage.foldername(name))[1] = (auth.jwt() ->> 'tenant_id')
+  bucket_id = 'documents' AND (
+    (auth.jwt() ->> 'role') = 'super_admin' OR 
+    (
+      ((auth.jwt() ->> 'role') = 'tenant_admin' OR (auth.jwt() ->> 'is_tenant_admin')::boolean) AND
+      (storage.foldername(name))[1] = (auth.jwt() ->> 'tenant_id')
+    )
+  )
+
 );
 
 -- 3. Grants

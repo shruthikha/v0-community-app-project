@@ -436,6 +436,25 @@ This ensures only occupied interests are shown, and newly created interests appe
 2. **Object Status**: `doc.status === 'published'` (UI & API level).
 3. **Operational Lock**: `isProcessing === doc.id` (Local state level) to prevent double-clicks.
 This ensures a robust, fail-safe user experience even under heavy load.
+### [2026-03-22] Cross-Tenant Storage Boundaries
+**Type**: Pattern
+**Context**: Issue #238 (PR Remediation). Standard RLS on `storage.objects` often fails if it depends on joins to `public.users` due to JWT claim caching.
+**Problem**: A `tenant_admin` might delete files from another tenant if the policy only checks their role but not the specific folder path.
+**Fix**: Use **Path-Prefixing + JWT Extraction**. All files must be stored in `/{tenant_id}/{filename}`. The RLS policy must compare the folder name directly to the `tenant_id` claim in the auth JWT: `(storage.foldername(name))[1] = (auth.jwt() ->> 'tenant_id')`. This is bulletproof and avoids recursive user table lookups.
+
+### [2026-03-22] Atomic Status-Gated Upsert
+**Type**: Pattern
+**Context**: Issue #238 (Ingestion Race Conditions). Parallel triggers (e.g. double-click) created duplicate processing jobs.
+**Problem**: Checking status in `if` logic inside a Server Action is prone to race conditions (TOCTOU).
+**Fix**: Move the logic to a **Single SQL Transaction** using `ON CONFLICT (...) DO UPDATE ... WHERE status <> 'processing'`. This ensures the database itself rejects the update if a job is already active, providing a true atomic lock.
+
+### [2026-03-22] BFF Proxy Timeout Enforcement
+**Type**: Pattern
+**Context**: Issue #238 (Proxy Hanging). Ingestion and health check proxies were hanging indefinitely when the internal agent was unresponsive.
+**Problem**: Hanging requests consume server-side event loop capacity and degrade overall system availability.
+**Rule**: NEVER perform a `fetch` in a BFF route without an `AbortSignal` timeout.
+**Implementation**: Use `AbortController.timeout(ms)` (Node 18+) or a manual `Promise.race` to ensure proxies fail fast (e.g., 5-15s) and return a clean 504/503.
+
 ### [2026-03-22] Prompt/Schema Alignment Strictness
 **Type**: Gotcha
 **Context**: Issue #236 (Draft Ingestion). Code used `prompt_tone` in forms/actions, while DB used `prompt_persona`.
@@ -447,3 +466,4 @@ This ensures a robust, fail-safe user experience even under heavy load.
 **Context**: Issue #236 (Vector Migrations). Models evolve (e.g., Gemini v1 -> OpenAI v3), and dimensions change.
 **Problem**: Semantic search breaks if chunks for the same tenant use different models or dimensions.
 **Rule**: Always store the `embedding_model` name alongside the document. This allows the system to detect "Stale Embeddings" and prompt for a manual re-index when global model defaults change.
+

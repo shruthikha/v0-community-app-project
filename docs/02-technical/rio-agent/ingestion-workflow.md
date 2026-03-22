@@ -32,8 +32,10 @@ The pipeline is implemented as a **Mastra Workflow** in `packages/rio-agent/src/
 - **Alignment**: Vectors are 1536-dim to align perfectly with the `pgvector` schema.
 
 ### 5. Atomic Persistence (`upsertStep`)
-- **Operation**: SQL RPC `upsert_document_chunks`.
-- **Atomicity**: Performs a `DELETE WHERE document_id = ...` followed by an `INSERT` in a single transaction. This ensures that a re-ingested document doesn't leave orphaned chunks if a previous run failed mid-way.
+- **Operation**: SQL RPC `upsert_rio_document_if_not_processing`.
+- **Atomicity**: Uses `ON CONFLICT (source_document_id) DO UPDATE ... WHERE status <> 'processing'`. This ensures that parallel ingestion attempts for the same document are ignored if one is already active, preventing race conditions.
+- **Validation**: The workflow includes a pre-persistence check that parsing resulted in non-empty Markdown and at least one chunk was generated. If these fail, the status is set to `error` with a descriptive message.
+
 
 ## Admin Interface & Controls
 - **Manual Trigger**: Ingestion is an explicit admin action via the "Add to knowledge base" button. This prevents unintentional data exposure.

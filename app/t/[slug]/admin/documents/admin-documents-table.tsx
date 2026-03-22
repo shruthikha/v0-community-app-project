@@ -98,7 +98,10 @@ export function AdminDocumentsTable({
                 <TableBody>
                     {isMounted && documents.map((doc) => {
                         const rioDoc = (rioDocs as any[]).find(r => r.source_document_id === doc.id)
-                        const isIngesting = isProcessing === doc.id
+                        const isIngesting = rioDoc?.status === 'processing'
+                        const isDeleting = isProcessing === doc.id
+                        const isDisabled = isIngesting || isDeleting || !!isProcessing
+
 
                         return (
                             <TableRow key={doc.id}>
@@ -130,8 +133,9 @@ export function AdminDocumentsTable({
                                                     <ReindexButton
                                                         documentId={doc.id}
                                                         status="not_indexed"
-                                                        aria-label="Reindex document"
-                                                        disabled={!!isProcessing}
+                                                        aria-label="Index document"
+                                                        disabled={isDisabled}
+
                                                     />
                                                 ) : (
                                                     <span className="text-[10px] text-muted-foreground italic">Published only</span>
@@ -150,7 +154,8 @@ export function AdminDocumentsTable({
                                                             status={rioDoc.status}
                                                             className="h-7 w-7"
                                                             aria-label="Re-index document"
-                                                            disabled={isProcessing === doc.id}
+                                                            disabled={isDisabled}
+
                                                         />
                                                     )}
                                                 </>
@@ -178,7 +183,12 @@ export function AdminDocumentsTable({
                                             asChild
                                             disabled={isProcessing === doc.id}
                                         >
-                                            <Link href={`/t/${slug}/admin/documents/${doc.id}/edit`} aria-label="Edit document">
+                                            <Link
+                                                href={`/t/${slug}/admin/documents/${doc.id}/edit`}
+                                                aria-label={`Edit ${doc.title}`}
+                                                className={cn(isDisabled && "pointer-events-none opacity-50")}
+                                            >
+
                                                 <Edit className="h-4 w-4" />
                                             </Link>
                                         </Button>
@@ -189,10 +199,11 @@ export function AdminDocumentsTable({
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                    aria-label="Delete document"
-                                                    disabled={isProcessing === doc.id}
+                                                    aria-label={`Delete ${doc.title}`}
+                                                    disabled={isDisabled}
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
+                                                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+
                                                 </Button>
                                             </AlertDialogTrigger>
                                             <AlertDialogContent>

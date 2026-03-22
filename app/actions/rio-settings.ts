@@ -21,12 +21,16 @@ export async function updateRioSettings(slug: string, tenantId: string, payload:
 
     const { data: userData } = await supabase
         .from('users')
-        .select('role, tenant_id')
+        .select('role, tenant_id, is_tenant_admin')
         .eq('id', user.id)
         .single()
 
-    if (!userData || (userData.role !== 'tenant_admin' && userData.role !== 'super_admin')) {
-        throw new Error("Forbidden: Admin privileges required")
+    const isSuperAdmin = userData?.role === 'super_admin'
+    const isTenantAdmin = (userData?.role === 'tenant_admin' || userData?.is_tenant_admin) && userData?.tenant_id === tenantId
+
+    if (!isSuperAdmin && !isTenantAdmin) {
+        throw new Error("Forbidden: Admin privileges for this tenant required")
+
     }
 
     // 2. Security: Injection Filter

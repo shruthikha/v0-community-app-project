@@ -27,11 +27,15 @@ export default async function RioSettingsPage({
     // 3. Check Role (Admin Only)
     const { data: userData } = await supabase
         .from('users')
-        .select('role')
+        .select('role, tenant_id, is_tenant_admin')
         .eq('id', user.id)
         .single()
 
-    if (!userData || (userData.role !== 'tenant_admin' && userData.role !== 'super_admin')) {
+    const isSuperAdmin = userData?.role === 'super_admin'
+    const isTenantAdmin = (userData?.role === 'tenant_admin' || userData?.is_tenant_admin) && userData?.tenant_id === tenant.id
+
+    if (!isSuperAdmin && !isTenantAdmin) {
+
         redirect(`/t/${slug}/dashboard`)
     }
 

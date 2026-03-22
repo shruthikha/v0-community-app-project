@@ -459,10 +459,25 @@ export function containsInjection(text: string): boolean {
 - **Vector Parity**: Migrated to OpenAI `text-embedding-3-small` (1536 dims) for superior semantic search performance.
 
 ### 🏗️ Application Stability
-- **Atomic Ingestion**: Replaced race-prone ingestion triggers with atomic upserts to ensure consistent document status transitions.
+- **Atomic Ingestion**: Replaced race-prone ingestion triggers with atomic upserts (`upsert_rio_document_if_not_processing`) to ensure consistent document status transitions.
 - **Crash Prevention**: Resolved critical `useRouter` runtime issues in the Admin Documents table.
-- **Validation**: Added server-side enforcement for PDF upload URLs to prevent malformed ingestion attempts.
+- **Validation**: Added server-side enforcement for PDF upload URLs and empty-content guards in the Mastra workflow.
 
 ### ♿ Accessibility & UX
 - **Full AX Audit**: Added ARIA labels to all icon-only administrative actions.
 - **Reactive UI**: Implemented real-time status polling for document ingestion with intelligent action disabling during processing.
+
+---
+
+## 🛠️ Remediation & Hardening (2026-03-22)
+
+Following an in-depth QA audit (PR #236 & #238), the following security and stability enhancements were implemented:
+
+### 1. Security & Authorization
+- **Tenant Isolation**: Fixed `isTenantAdmin` logic ensuring admins are strictly scoped to their assigned `tenant_id` for document mutations and settings access.
+- **Storage RLS**: Hardened `documents` bucket policies to restrict `tenant_admin` to their respective `/[tenant_id]/` folders.
+
+### 2. Stability & Concurrency
+- **Atomic Ingestion**: Refactored the ingestion trigger to use an atomic Postgres RPC to prevent race conditions during rapid clicks.
+- **Robustness**: Added 15s/5s timeouts to all external agent proxy handoffs and empty-content guards in the Mastra workflow.
+

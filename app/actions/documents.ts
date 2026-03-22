@@ -33,7 +33,7 @@ export async function upsertDocument(formData: FormData, tenantId: string, slug:
         .single()
 
     const isSuperAdmin = userData?.role === "super_admin"
-    const isTenantAdmin = (userData?.role === "tenant_admin" && userData?.tenant_id === tenantId) || userData?.is_tenant_admin
+    const isTenantAdmin = (userData?.role === "tenant_admin" || userData?.is_tenant_admin) && userData?.tenant_id === tenantId
 
     if (!isSuperAdmin && !isTenantAdmin) {
         throw new Error("Unauthorized")
@@ -55,7 +55,11 @@ export async function upsertDocument(formData: FormData, tenantId: string, slug:
 
     const validated = DocumentSchema.parse(rawData)
 
-    // Extra validation for PDF types
+    // Extra validation for updates and PDF types
+    if (documentId && !validated.change_summary) {
+        throw new Error("Change summary is required for document updates")
+    }
+
     if (validated.document_type === "pdf" && !validated.file_url) {
         throw new Error("File URL is required for PDF documents")
     }

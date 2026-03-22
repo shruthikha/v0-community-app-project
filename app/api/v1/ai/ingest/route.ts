@@ -141,6 +141,15 @@ export async function POST(req: NextRequest) {
             )
         }
 
+        // Issue #234: If already processing, don't trigger again to avoid redundant Mastra executions
+        if (rioDoc.status === 'processing') {
+            clearTimeout(timeoutId)
+            return NextResponse.json(
+                { success: true, data: { status: 'processing', message: 'Ingestion already in progress' } },
+                { status: 202 }
+            )
+        }
+
         // 5. Build Payload for Railway Agent
 
         // 5. Forward to Railway

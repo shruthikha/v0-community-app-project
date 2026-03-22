@@ -377,7 +377,9 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                         name="change_summary"
                         render={({ field }: { field: any }) => (
                             <FormItem>
-                                <FormLabel>Change Summary (Required for updates)</FormLabel>
+                                <FormLabel>
+                                    Change Summary <span className="text-destructive">*</span>
+                                </FormLabel>
                                 <FormControl>
                                     <Input placeholder="What changed in this version?" {...field} />
                                 </FormControl>
@@ -402,7 +404,13 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                     {document && (
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button type="button" variant="destructive" className="gap-2">
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    className="gap-2"
+                                    disabled={isUploading || form.formState.isSubmitting}
+                                >
+
                                     <Trash2 className="h-4 w-4" />
                                     Delete Document
                                 </Button>

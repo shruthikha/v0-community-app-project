@@ -146,6 +146,12 @@ const parseContentStep = createStep({
                 console.log(`[WORKFLOW:INGEST] Using LlamaParse for PDF ${fileName}`);
                 markdown = await parseToMarkdown(buffer as Buffer, fileName);
             }
+            if (!markdown || markdown.trim().length === 0) {
+                const errorMsg = `Parsing resulted in empty content for ${fileName}. This usually happens when the source is empty or unreadable.`;
+                await updateDocStatus(documentId, 'error', errorMsg);
+                throw new Error(errorMsg);
+            }
+
 
             console.log(`[WORKFLOW:INGEST] Successfully parsed ${fileName} (${markdown.length} chars)`);
 
@@ -184,6 +190,12 @@ const chunkContentStep = createStep({
         try {
             const chunker = new StructureAwareChunker();
             const chunks = chunker.chunk(markdown, documentId, tenantId);
+
+            if (chunks.length === 0) {
+                const errorMsg = `No semantic chunks generated for document ${documentId}. Verify document content and structure.`;
+                await updateDocStatus(documentId, 'error', errorMsg);
+                throw new Error(errorMsg);
+            }
 
             console.log(`[WORKFLOW:INGEST] Created ${chunks.length} chunks for document ${documentId}`);
 
