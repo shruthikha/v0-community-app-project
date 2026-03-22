@@ -47,9 +47,9 @@ export async function POST(req: NextRequest) {
         const resourceId = body.resourceId || tenantId
 
         // 2. Forward to Railway
-        const railwayUrl = process.env.RIO_RAILWAY_URL || 'http://localhost:3001'
+        const railwayUrl = process.env.RIO_RAILWAY_URL || process.env.RIO_AGENT_URL || 'http://localhost:3001'
 
-        const response = await fetch(`${railwayUrl}/chat`, {
+        const response = await fetch(`${railwayUrl}/api/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

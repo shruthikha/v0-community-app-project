@@ -27,9 +27,9 @@ The pipeline is implemented as a **Mastra Workflow** in `packages/rio-agent/src/
 - **Metadata**: Each chunk inherits the `document_id` and `tenant_id`.
 
 ### 4. Embedding Generation (`embedStep`)
-- **Model**: `openai/text-embedding-3-small` (1536 dimensions) via OpenRouter.
+- **Model**: `google/gemini-embedding-1.5` (or similar) via OpenRouter.
 - **Batching**: Chunks are processed in batches of 50 to optimize network latency and respect rate limits.
-- **Alignment**: Vectors are 1536-dim to align perfectly with the `pgvector` schema.
+- **Alignment**: Vectors are 1536-dim (or 768-dim) to align with the `pgvector` schema.
 
 ### 5. Atomic Persistence (`upsertStep`)
 - **Operation**: SQL RPC `upsert_rio_document_if_not_processing`.

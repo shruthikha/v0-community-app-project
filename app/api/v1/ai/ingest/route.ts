@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
         // 5. Build Payload for Railway Agent
 
         // 5. Forward to Railway
-        const railwayUrl = process.env.RIO_RAILWAY_URL || 'http://localhost:3001'
+        const railwayUrl = process.env.RIO_RAILWAY_URL || process.env.RIO_AGENT_URL || 'http://localhost:3001'
         const agentKey = process.env.RIO_AGENT_KEY
 
         const railwaysHeaders: Record<string, string> = {
@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-            const response = await fetch(`${railwayUrl}/ingest`, {
+            const response = await fetch(`${railwayUrl}/api/ingest`, {
                 method: 'POST',
                 headers: railwaysHeaders,
                 body: JSON.stringify({
