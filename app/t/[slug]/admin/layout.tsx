@@ -23,6 +23,7 @@ import {
   FileText,
   Warehouse, // Added for Facilities
   CalendarCheck,
+  Stars,
 } from 'lucide-react'
 import Link from "next/link"
 import { UserAvatarMenu } from "@/components/user-avatar-menu"
@@ -318,6 +319,17 @@ export default async function TenantAdminLayout({
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+
+                {(features as any).rio?.enabled && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link href={`/t/${slug}/admin/rio/settings`}>
+                        <Stars className="text-forest-500" />
+                        <span>Community Agent</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

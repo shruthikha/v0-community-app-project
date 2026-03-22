@@ -13,6 +13,7 @@ import { PatternRedactor } from "./lib/pattern-redactor.js";
 import { sha256 } from "./lib/sha256.js";
 
 import { ingestionWorkflow } from "./workflows/ingest.js";
+import { claimDocument, updateDocStatus } from "./lib/supabase.js";
 
 const threadStore = new ThreadStore(memory);
 
@@ -31,6 +32,7 @@ function requireEnv(name: string): string {
 }
 
 const connectionString = requireEnv("RIO_DATABASE_URL");
+const rioAgentKey = requireEnv("RIO_AGENT_KEY");
 
 /**
  * Helper to mask sensitive identifiers in logs unless DEBUG_LOGGING is enabled.
@@ -278,38 +280,57 @@ export const mastra = new Mastra({
             /**
              * Issue #192: Ingestion Trigger Endpoint
              * Receives the trigger from the Vercel BFF and kicks off the workflow.
-             * (Note: Full logic deferred to #187-#191; this is the plumbing stub).
              */
             registerApiRoute("/ingest", {
                 method: "POST",
                 requiresAuth: false,
                 handler: async (c) => {
-                    const body = await c.req.json().catch(() => ({}));
-                    const { documentId, tenantId } = body;
+                    try {
+                        // Check for shared secret auth
+                        const authHeader = c.req.header("x-agent-key");
+                        if (authHeader !== rioAgentKey) {
+                            console.warn(`[RIO-AGENT] 401 Unauthorized: Invalid or missing x-agent-key`);
+                            return c.json({ error: "Unauthorized" }, 401);
+                        }
 
-                    if (!documentId || !tenantId) {
-                        return c.json({ error: "documentId and tenantId are required" }, 400);
+                        const body = await c.req.json().catch(() => ({}));
+                        const { documentId, tenantId } = body;
+
+                        if (!documentId || !tenantId) {
+                            return c.json({ error: "documentId and tenantId are required" }, 400);
+                        }
+
+                        // PRE-FLIGHT CHECK: Ensure agent has credentials to talk back to Supabase
+                        if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+                            const error = "Agent misconfigured: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment.";
+                            console.error(`[RIO-AGENT] ${error}`);
+                            return c.json({ status: "error", error }, 500);
+                        }
+
+
+
+                        const workflow = mastra.getWorkflow("ingest");
+                        workflow.createRun()
+                            .then(run => run.start({ inputData: { documentId } }))
+                            .then(result => {
+                                if (result.status === 'failed') {
+                                    console.error(`[RIO-AGENT] Ingestion workflow failed for ${documentId}:`, result.error);
+                                    updateDocStatus(documentId, 'error', `Workflow failed: ${result.error?.message || 'Unknown error'}`);
+                                } else {
+                                    console.log(`[RIO-AGENT] Ingestion workflow completed for ${documentId}`);
+                                    updateDocStatus(documentId, 'processed');
+                                }
+                            })
+                            .catch(async (err: any) => {
+                                console.error(`[RIO-AGENT] Ingestion workflow engine error for ${documentId}:`, err);
+                                await updateDocStatus(documentId, 'error', `Engine error: ${err.message}`);
+                            });
+
+                        return c.json({ status: "queued", message: "Ingestion workflow started" }, 202);
+                    } catch (error: any) {
+                        console.error("[RIO-AGENT] Ingestion request error:", error);
+                        return c.json({ status: "error", error: error.message }, 500);
                     }
-
-                    console.log(`[RIO-AGENT] INGEST TRIGGER: tenantId=${maskId(tenantId)}, documentId=${maskId(documentId)}`);
-
-                    // Execute the ingestion workflow asynchronously
-                    // We don't await it here to return 202 Accepted immediately
-                    const workflow = mastra.getWorkflow("ingest");
-                    workflow.createRun()
-                        .then(run => run.start({ inputData: { documentId } }))
-                        .then(result => {
-                            if (result.status === 'failed') {
-                                console.error(`[RIO-AGENT] Ingestion workflow failed for ${documentId}:`, result.error);
-                            } else {
-                                console.log(`[RIO-AGENT] Ingestion workflow completed for ${documentId}`);
-                            }
-                        })
-                        .catch((err: any) => {
-                            console.error(`[RIO-AGENT] Ingestion workflow engine error for ${documentId}:`, err);
-                        });
-
-                    return c.json({ status: "queued", message: "Ingestion workflow started" }, 202);
                 },
             }),
         ],

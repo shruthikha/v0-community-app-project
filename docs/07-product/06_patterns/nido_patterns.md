@@ -407,3 +407,43 @@ This ensures only occupied interests are shown, and newly created interests appe
 **Context**: Issue #168 (Rio Agent Robustness). AI service endpoints often handle raw JSON bodies that are passed directly to downstream model generators or stream handlers.
 **Problem**: Passing untrusted or malformed JSON payloads to expensive AI operations can lead to opaque 500 errors, resource leaks, or unexpected behavior if the payload shape doesn't match internal expectations.
 **Fix**: ALWAYS use a validation schema (like **Zod**) at the very entry point of your service handler. Parse the request body and validate required fields (`messages`, `threadId`, etc.) BEFORE any logic or database lookups occur. Return a **400 Bad Request** with clear structural errors if the shape is invalid. This ensures your service "fails fast" and remains robust against malformed client requests.
+### [2026-03-21] Embedding Dimension Strictness
+**Type**: Gotcha
+**Context**: Issue #160 (RAG Ingestion). `gemini-embedding-001` (v1) outputs 768 dimensions, but AI-generated migrations often assume 1536 (OpenAI standard).
+**Problem**: pgvector `vector(1536)` columns REJECT 768-dim inserts. Silent failure or truncation in some clients can corrupt semantic recall.
+**Fix**: Always match the model to the column. If using a 1536-dim column, use `text-embedding-3-small`. Otherwise, migrate the column to `vector(768)`.
+
+### [2026-03-21] Path-Based Storage RLS
+**Type**: Pattern
+**Context**: Issue #233 (Documents Bucket). Complex RLS checking `auth.uid()` against the `public.users` table for `tenant_admin` role often fails in storage contexts due to JWT claim limitations.
+**Rule**: Enforce multi-tenant isolation in Storage via **path-prefixing**.
+**Implementation**: 
+1. Prefix all uploads with `tenant_id` (e.g. `documents/{tenant_id}/{file_name}`).
+2. Use RLS: `CREATE POLICY ... ON storage.objects USING (bucket_id = 'documents' AND (storage.foldername(name))[1] = (auth.jwt() ->> 'tenant_id'))`.
+3. This is more performant and robust than cross-table joins in Storage policies.
+### [2026-03-21] Idempotent AI Ingestion
+**Type**: Pattern
+**Context**: Issue #200 (Admin Ingestion). Manually triggering "Re-index" on a document that is already being processed.
+**Problem**: Client-side `upsert` is not atomic. If an admin clicks "Re-index" while a background job is running, it could reset the status to 'pending' and trigger a redundant and potentially conflicting job.
+**Fix**: Use a **Server-Side RPC** (`upsert_rio_document_if_not_processing`) that checks the current `status` in a single Postgres transaction. If `status = 'processing'`, the request is ignored or rejected, ensuring the active job completes without disruption.
+
+### [2026-03-21] Multi-Layer Action Gating
+**Type**: Pattern
+**Context**: Issue #200 (Admin Ingestion). Re-index buttons appearing for draft documents or non-admin users.
+**Problem**: UI components often forget to re-verify the "Source of Truth" status (e.g. `doc.status === 'published'`) before showing expensive AI actions.
+**Rule**: AI actions in list views MUST be gated by a **Triad of Checks**:
+1. **User Role**: `is_tenant_admin` (BFF/Action Level).
+2. **Object Status**: `doc.status === 'published'` (UI & API level).
+3. **Operational Lock**: `isProcessing === doc.id` (Local state level) to prevent double-clicks.
+This ensures a robust, fail-safe user experience even under heavy load.
+### [2026-03-22] Prompt/Schema Alignment Strictness
+**Type**: Gotcha
+**Context**: Issue #236 (Draft Ingestion). Code used `prompt_tone` in forms/actions, while DB used `prompt_persona`.
+**Problem**: Mismatched keys between UI, Server Actions, and Postgres columns cause silent failures (upserting nulls) or crash on save.
+**Rule**: Always verify column names in the migration files BEFORE typing form schemas (Zod). Documentation should use the canonical DB name (e.g., `persona`) across all layers.
+
+### [2026-03-22] Embedding Model Tracking
+**Type**: Pattern
+**Context**: Issue #236 (Vector Migrations). Models evolve (e.g., Gemini v1 -> OpenAI v3), and dimensions change.
+**Problem**: Semantic search breaks if chunks for the same tenant use different models or dimensions.
+**Rule**: Always store the `embedding_model` name alongside the document. This allows the system to detect "Stale Embeddings" and prompt for a manual re-index when global model defaults change.

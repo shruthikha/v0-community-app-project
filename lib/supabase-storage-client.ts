@@ -5,18 +5,20 @@ import { v4 as uuidv4 } from "uuid"
 /**
  * Upload a file to Supabase Storage (Client-side)
  * @param file File object to upload
- * @param bucket Storage bucket name (default: "photos")
+ * @param tenantId UUID of the current tenant (required for RLS isolation)
+ * @param bucket Storage bucket name (default: "documents")
  * @returns Object containing public URL and other metadata
  */
-export async function uploadFileClient(file: File, bucket: "photos" | "documents" = "photos") {
+export async function uploadFileClient(file: File, tenantId: string, bucket: "documents" | "photos" = "documents") {
     const supabase = createClient()
 
     const filename = sanitizeFilename(file.name)
     const uniqueId = uuidv4()
 
-    // Create a clean path: year/month/uuid-filename
+    // Create a clean path: tenantId/year/month/uuid-filename
+    // RLS policy requires the first folder to be the tenantId
     const date = new Date()
-    const path = `${date.getFullYear()}/${date.getMonth() + 1}/${uniqueId}-${filename}`
+    const path = `${tenantId}/${date.getFullYear()}/${date.getMonth() + 1}/${uniqueId}-${filename}`
 
     const { data, error } = await supabase
         .storage

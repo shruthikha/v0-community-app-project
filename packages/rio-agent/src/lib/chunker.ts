@@ -119,16 +119,28 @@ export class StructureAwareChunker {
     /**
      * Fallback for large sections that exceed maxChars.
      */
-    private recursiveSplit(text: string, prefix: string, breadcrumbs: string[], documentId: string, tenantId: string, chunks: Chunk[]) {
+    private recursiveSplit(text: string, prefix: string, breadcrumbs: string[], documentId: string, tenantId: string, chunks: Chunk[]): void {
         let start = 0;
         const effectiveLimit = this.maxChars - prefix.length;
 
+        // Safety: If prefix itself is too long, we must truncate the prefix or skip
+        if (effectiveLimit <= 100) {
+            console.warn(`[CHUNKER] Prefix too long (${prefix.length}), using truncated prefix for document ${documentId}`);
+            return this.recursiveSplit(text, prefix.substring(0, 50) + "... ", breadcrumbs, documentId, tenantId, chunks);
+        }
+
+        let localCount = 0;
+
         while (start < text.length) {
-            let end = start + effectiveLimit;
+            let end = Math.min(start + effectiveLimit, text.length);
+
+            // Try to find a good breaking point (newline) in the last 30% of the window
             if (end < text.length) {
-                const lastNewline = text.lastIndexOf("\n", end);
-                if (lastNewline > start + effectiveLimit * 0.7) {
-                    end = lastNewline;
+                const searchStart = Math.floor(start + effectiveLimit * 0.7);
+                const searchWindow = text.substring(searchStart, end);
+                const lastNewline = searchWindow.lastIndexOf("\n");
+                if (lastNewline !== -1) {
+                    end = searchStart + lastNewline;
                 }
             }
 
@@ -138,11 +150,21 @@ export class StructureAwareChunker {
                     text: `${prefix}${chunkText}`,
                     metadata: { documentId, tenantId, breadcrumbs }
                 });
+                localCount++;
             }
 
-            start = end - this.overlap;
-            if (start < 0) start = 0;
-            if (start >= text.length - this.overlap) break;
+            // Move the start forward, accounting for overlap
+            const nextStart = end - this.overlap;
+
+            // Safety: if we didn't advance at all, force advance
+            if (nextStart <= start) {
+                start = end;
+            } else {
+                start = nextStart;
+            }
+
+            if (start >= text.length) break;
         }
+        console.log(`[CHUNKER] Recursive split generated ${localCount} chunks for section`);
     }
 }

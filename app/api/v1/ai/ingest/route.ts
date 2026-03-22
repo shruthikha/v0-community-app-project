@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { errorResponse, successResponse } from '@/lib/api/response'
 
 /**
@@ -79,63 +80,116 @@ export async function POST(req: NextRequest) {
             )
         }
 
-        // 4. Validate Document Ownership
-        // Ensure the document exists and belongs to the same tenant
-        const { data: document, error: docError } = await supabase
-            .from('rio_documents')
-            .select('id, tenant_id')
+        // 4. Validate Document and Bridge to AI (Using Admin Client to bypass RLS quirks)
+        const adminClient = createAdminClient()
+
+        // First look for a source document from the public.documents table
+        const { data: sourceDoc, error: sourceError } = await adminClient
+            .from('documents')
+            .select('id, tenant_id, title, document_type, file_url, status')
             .eq('id', documentId)
             .single()
 
-        if (docError || !document) {
+        if (sourceError || !sourceDoc) {
             clearTimeout(timeoutId)
+            console.error('[API/v1/ai/ingest] Source document not found:', sourceError)
             return NextResponse.json(
-                { success: false, error: { message: 'Document not found', code: 'NOT_FOUND' } },
+                { success: false, error: { message: 'Source document not found', code: 'NOT_FOUND' } },
                 { status: 404 }
             )
         }
 
-        // Cross-tenant check
-        if (!isSuperAdmin && document.tenant_id !== tenantId) {
+        // Cross-tenant check for source
+        if (!isSuperAdmin && sourceDoc.tenant_id !== tenantId) {
             clearTimeout(timeoutId)
-            console.warn(`[API/v1/ai/ingest] 403 Forbidden: Tenant mismatch for document ${documentId}. User Tenant: ${tenantId}, Doc Tenant: ${document.tenant_id}`)
+            console.warn(`[API/v1/ai/ingest] Cross-tenant access attempted by user ${user.id}`)
             return NextResponse.json(
                 { success: false, error: { message: 'Access denied: document belongs to different tenant', code: 'FORBIDDEN' } },
                 { status: 403 }
             )
         }
 
+        // Ensure document is published (as per requirements)
+        if (sourceDoc.status !== 'published') {
+            clearTimeout(timeoutId)
+            return NextResponse.json(
+                { success: false, error: { message: 'Only published documents can be ingested', code: 'BAD_REQUEST' } },
+                { status: 400 }
+            )
+        }
+
+        // 4. Bridge to AI using an Atomic RPC to prevent race conditions
+        // Issue #234: Bridge public.documents -> rio_documents via source_document_id
+        console.log(`[API/v1/ai/ingest] Calling idempotent upsert RPC for doc ${sourceDoc.id}`)
+
+        const { data: rioDocData, error: rpcError } = await adminClient
+            .rpc('upsert_rio_document_if_not_processing', {
+                p_source_document_id: sourceDoc.id,
+                p_tenant_id: sourceDoc.tenant_id,
+                p_name: sourceDoc.title
+            })
+
+        // RPC returns a table/array, even for a single result
+        const rioDoc = rioDocData?.[0]
+
+        if (rpcError || !rioDoc) {
+            console.error('[API/v1/ai/ingest] RPC error:', rpcError)
+            clearTimeout(timeoutId)
+            return NextResponse.json(
+                { success: false, error: { message: 'Database error syncing AI record', code: 'DATABASE_ERROR' } },
+                { status: 500 }
+            )
+        }
+
+        // 5. Build Payload for Railway Agent
+
         // 5. Forward to Railway
         const railwayUrl = process.env.RIO_RAILWAY_URL || 'http://localhost:3001'
         const agentKey = process.env.RIO_AGENT_KEY
 
-        const response = await fetch(`${railwayUrl}/ingest`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-agent-key': agentKey || '', // Required for security
-                'x-tenant-id': document.tenant_id,
-                'x-user-id': user.id
-            },
-            body: JSON.stringify({
-                documentId: document.id,
-                tenantId: document.tenant_id
-            }),
-            signal: controller.signal
-        })
-
-        clearTimeout(timeoutId)
-
-        if (!response.ok) {
-            const errorBody = await response.json().catch(() => ({}))
-            console.error('[API/v1/ai/ingest] Railway error:', errorBody)
-            throw new Error(`Railway agent returned ${response.status}: ${errorBody.error || 'Unknown error'}`)
+        const railwaysHeaders: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'x-agent-key': agentKey || '',
+            'x-tenant-id': sourceDoc.tenant_id,
+            'x-user-id': user.id
         }
 
-        return NextResponse.json(
-            { success: true, data: { status: 'queued' } },
-            { status: 202 }
-        )
+        try {
+            const response = await fetch(`${railwayUrl}/ingest`, {
+                method: 'POST',
+                headers: railwaysHeaders,
+                body: JSON.stringify({
+                    documentId: rioDoc!.id,
+                    tenantId: sourceDoc.tenant_id
+                }),
+                signal: controller.signal
+            })
+
+            clearTimeout(timeoutId)
+
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}))
+                console.error('[API/v1/ai/ingest] Railway error:', errorBody)
+                throw new Error(`Railway agent returned ${response.status}: ${errorBody.error || 'Unknown error'}`)
+            }
+
+            return NextResponse.json(
+                { success: true, data: { status: 'queued' } },
+                { status: 202 }
+            )
+        } catch (fetchError: any) {
+            // Update status to error if handoff fails
+            await adminClient
+                .from('rio_documents')
+                .update({
+                    status: 'error',
+                    error_message: `Handoff failed: ${fetchError.message}`,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', rioDoc.id)
+
+            throw fetchError
+        }
 
     } catch (error) {
         clearTimeout(timeoutId)

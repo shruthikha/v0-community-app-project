@@ -55,6 +55,11 @@ export async function upsertDocument(formData: FormData, tenantId: string, slug:
 
     const validated = DocumentSchema.parse(rawData)
 
+    // Extra validation for PDF types
+    if (validated.document_type === "pdf" && !validated.file_url) {
+        throw new Error("File URL is required for PDF documents")
+    }
+
     // Construct DB payload
     const payload = {
         tenant_id: tenantId,
@@ -157,6 +162,77 @@ export async function upsertDocument(formData: FormData, tenantId: string, slug:
 
     revalidatePath(`/t/${slug}/admin/documents`)
     return { success: true, id: resultId }
+}
+
+export async function deleteDocument(documentId: string, tenantId: string, slug: string) {
+    const supabase = await createClient()
+
+    // Validate user permissions
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Unauthorized")
+
+    const { data: userData } = await supabase
+        .from("users")
+        .select("role, tenant_id, is_tenant_admin")
+        .eq("id", user.id)
+        .single()
+
+    const isSuperAdmin = userData?.role === "super_admin"
+    const isTenantAdmin = (userData?.role === "tenant_admin" && userData?.tenant_id === tenantId) || userData?.is_tenant_admin
+
+    if (!isSuperAdmin && !isTenantAdmin) {
+        throw new Error("Unauthorized")
+    }
+
+    // 1. Fetch document for storage cleanup
+    const { data: document, error: fetchError } = await supabase
+        .from("documents")
+        .select("file_url, tenant_id")
+        .eq("id", documentId)
+        .single()
+
+    if (fetchError || !document) {
+        throw new Error("Document not found")
+    }
+
+    // Security check: ensure tenant ID matches for tenant admins
+    if (!isSuperAdmin && document.tenant_id !== tenantId) {
+        throw new Error("Unauthorized: Tenant mismatch")
+    }
+
+    // 2. Cleanup related tables (per user request: keep in server action)
+    await supabase.from("document_reads").delete().eq("document_id", documentId)
+    await supabase.from("document_changelog").delete().eq("document_id", documentId)
+
+    // 3. Cleanup Storage if PDF
+    if (document.file_url && document.file_url.includes("/storage/v1/object/public/documents/")) {
+        const filePath = document.file_url.split("/documents/")[1]
+        if (filePath) {
+            const { error: storageError } = await supabase.storage
+                .from("documents")
+                .remove([filePath])
+
+            if (storageError) {
+                console.error("[deleteDocument] Storage cleanup failed:", storageError)
+                // We don't fail the whole action if storage cleanup fails, but we log it
+            }
+        }
+    }
+
+    // 4. Atomic Delete via Postgres RPC
+    // This handles rio_document_chunks, rio_documents, and the source document record
+    const { error: deleteError } = await supabase.rpc('delete_document_with_rio_cascade', {
+        p_document_id: documentId,
+        p_tenant_id: tenantId
+    })
+
+    if (deleteError) {
+        console.error("[deleteDocument] RPC Error:", deleteError)
+        throw new Error(deleteError.message)
+    }
+
+    revalidatePath(`/t/${slug}/admin/documents`)
+    return { success: true }
 }
 
 export async function markDocumentAsRead(documentId: string, slug: string) {

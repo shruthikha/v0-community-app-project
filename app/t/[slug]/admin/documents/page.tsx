@@ -26,6 +26,12 @@ export default async function AdminDocumentsPage({
         .eq("tenant_id", tenant.id)
         .order("updated_at", { ascending: false })
 
+    // Fetch AI statuses (bridge)
+    const { data: rioDocs } = await supabase
+        .from("rio_documents")
+        .select("id, status, source_document_id, updated_at")
+        .eq("tenant_id", tenant.id)
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -56,7 +62,7 @@ export default async function AdminDocumentsPage({
                     </Button>
                 </div>
             ) : (
-                <AdminDocumentsTable documents={documents} slug={slug} />
+                <AdminDocumentsTable documents={documents} rioDocs={rioDocs || []} slug={slug} tenantId={tenant.id} />
             )}
         </div>
     )

@@ -23,7 +23,9 @@
         "@mastra/posthog": "^1.0.8",
         "@mastra/rag": "^2.1.2",
         "@supabase/supabase-js": "^2.99.3",
+        "@types/turndown": "^5.0.6",
         "llama-parse": "^0.1.0",
+        "turndown": "^7.2.2",
         "zod": "3.25.76"
     },
     "overrides": {

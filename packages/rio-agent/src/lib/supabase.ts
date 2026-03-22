@@ -27,8 +27,10 @@ export interface RioDocument {
     id: string;
     tenant_id: string;
     file_path: string;
-    status: 'pending' | 'processing' | 'processed' | 'error';
-    error_message?: string;
+    source_document_id?: string;
+    status: 'ready' | 'pending' | 'processing' | 'processed' | 'error';
+    error_message?: string | null;
+    embedding_model?: string;
     updated_at?: string;
 }
 
@@ -76,7 +78,8 @@ export async function claimDocument(documentId: string): Promise<RioDocument | n
 export async function updateDocStatus(
     documentId: string,
     status: RioDocument['status'],
-    errorMessage?: string
+    errorMessage?: string,
+    embeddingModel?: string
 ) {
     const update: Partial<RioDocument> = {
         status,
@@ -90,6 +93,10 @@ export async function updateDocStatus(
 
     if (errorMessage !== undefined) {
         update.error_message = errorMessage;
+    }
+
+    if (embeddingModel !== undefined) {
+        update.embedding_model = embeddingModel;
     }
 
     const { error } = await supabaseAdmin
@@ -106,9 +113,21 @@ export async function updateDocStatus(
  * Downloads a file from the 'rio-documents' bucket as a Buffer.
  */
 export async function downloadDocument(path: string): Promise<Buffer | null> {
+    // If path is a full URL, extract the relative storage path
+    let storagePath = path;
+    if (path.includes('/storage/v1/object/public/documents/')) {
+        storagePath = path.split('/storage/v1/object/public/documents/')[1];
+    } else if (path.startsWith('http')) {
+        // Handle generic URLs if they contain the bucket name
+        const bucketMatch = path.match(/\/documents\/(.+)$/);
+        if (bucketMatch) {
+            storagePath = bucketMatch[1];
+        }
+    }
+
     const { data, error } = await supabaseAdmin.storage
-        .from('rio-documents')
-        .download(path);
+        .from('documents')
+        .download(storagePath);
 
     if (error || !data) {
         console.error(`[SUPABASE] Error downloading file from ${path}:`, error);

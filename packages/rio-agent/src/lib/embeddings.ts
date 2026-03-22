@@ -10,9 +10,13 @@ const openrouter = createOpenAI({
 });
 
 /**
- * google/gemini-embedding-001 via OpenRouter.
+ * OpenAI text-embedding-3-small via OpenRouter (1536 dimensions).
+ * 
+ * NOTE: This model replaced 'gemini-embedding-001' to align with our 1536d vector schema.
+ * All existing documents must be re-indexed to ensure semantic compatibility.
  */
-export const embeddingModel: EmbeddingModel = openrouter.embedding('google/gemini-embedding-001');
+export const EMBEDDING_MODEL_NAME = 'openai/text-embedding-3-small';
+export const embeddingModel: EmbeddingModel = openrouter.embedding(EMBEDDING_MODEL_NAME);
 
 export async function generateEmbedding(text: string): Promise<number[]> {
     const { embedding } = await embed({
@@ -27,7 +31,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     const BATCH_SIZE = 50;
     const allEmbeddings: number[][] = [];
 
-    // Process in batches of 50 for granular error handling and Gemini limits
+    // Process in batches of 50 for granular error handling and API rate limits
     for (let i = 0; i < texts.length; i += BATCH_SIZE) {
         const batch = texts.slice(i, i + BATCH_SIZE);
         console.log(`[EMBEDDINGS] Processing batch ${i / BATCH_SIZE + 1} (${batch.length} texts)`);

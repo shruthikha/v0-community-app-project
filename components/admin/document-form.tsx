@@ -25,12 +25,23 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Loader2, Upload, AlertCircle } from "lucide-react"
-import { upsertDocument } from "@/app/actions/documents"
+import { Loader2, Upload, AlertCircle, Trash2 } from "lucide-react"
+import { upsertDocument, deleteDocument } from "@/app/actions/documents"
 import { toast } from "sonner"
 import { uploadFileClient } from "@/lib/supabase-storage-client"
 import TiptapEditor from "@/components/tiptap-editor"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 const formSchema = z.object({
     title: z.string().min(1, "Title is required"),
@@ -42,7 +53,7 @@ const formSchema = z.object({
     file_url: z.string().optional(),
     cover_image_url: z.string().optional(),
     is_featured: z.boolean().default(false),
-    change_summary: z.string().optional(),
+    change_summary: z.string().min(0).default(""),
 })
 
 type DocumentFormValues = z.infer<typeof formSchema>
@@ -57,17 +68,17 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
     const [isUploading, setIsUploading] = useState(false)
 
     const form = useForm<DocumentFormValues>({
-        resolver: zodResolver(formSchema),
+        resolver: zodResolver(formSchema) as any,
         defaultValues: {
             title: document?.title || "",
             description: document?.description || "",
             content: document?.content || "",
-            category: document?.category || "regulation",
-            document_type: document?.document_type || "page",
-            status: document?.status || "draft",
+            category: (document?.category as any) || "regulation",
+            document_type: (document?.document_type as any) || "page",
+            status: (document?.status as any) || "draft",
             file_url: document?.file_url || "",
             cover_image_url: document?.cover_image_url || "",
-            is_featured: document?.is_featured ?? false,
+            is_featured: !!document?.is_featured,
             change_summary: "",
         },
     })
@@ -82,12 +93,12 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
         try {
             setIsUploading(true)
             const bucket = fieldName === "file_url" ? "documents" : "photos"
-            const { url } = await uploadFileClient(file, bucket)
+            const { url } = await uploadFileClient(file, tenantId, bucket)
             form.setValue(fieldName, url)
             toast.success("File uploaded successfully")
-        } catch (error) {
+        } catch (error: any) {
             console.error(error)
-            toast.error("Upload failed")
+            toast.error(error.message || "Upload failed")
         } finally {
             setIsUploading(false)
         }
@@ -101,6 +112,12 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
     }, [])
 
     async function onSubmit(data: DocumentFormValues) {
+        // Enforce file upload for PDF types
+        if (data.document_type === 'pdf' && !data.file_url) {
+            toast.error("Please upload a PDF file before saving")
+            return
+        }
+
         try {
             const formData = new FormData()
             Object.entries(data).forEach(([key, value]) => {
@@ -119,6 +136,19 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
         } catch (error: any) {
             console.error("Submit error:", error)
             toast.error(error.message || "Failed to save document")
+        }
+    }
+
+    async function handleDelete() {
+        if (!document) return
+        try {
+            const result = await deleteDocument(document.id, tenantId, slug)
+            if (result.success) {
+                toast.success("Document deleted successfully")
+                router.push(`/t/${slug}/admin/documents`)
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Failed to delete document")
         }
     }
 
@@ -143,7 +173,7 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                     <FormField
                         control={form.control}
                         name="title"
-                        render={({ field }) => (
+                        render={({ field }: { field: any }) => (
                             <FormItem>
                                 <FormLabel>Title</FormLabel>
                                 <FormControl>
@@ -157,7 +187,7 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                     <FormField
                         control={form.control}
                         name="category"
-                        render={({ field }) => (
+                        render={({ field }: { field: any }) => (
                             <FormItem>
                                 <FormLabel>Category</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -182,7 +212,7 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                 <FormField
                     control={form.control}
                     name="description"
-                    render={({ field }) => (
+                    render={({ field }: { field: any }) => (
                         <FormItem>
                             <FormLabel>Description</FormLabel>
                             <FormControl>
@@ -201,7 +231,7 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                     <FormField
                         control={form.control}
                         name="document_type"
-                        render={({ field }) => (
+                        render={({ field }: { field: any }) => (
                             <FormItem>
                                 <FormLabel>Document Type</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -223,7 +253,7 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                     <FormField
                         control={form.control}
                         name="status"
-                        render={({ field }) => (
+                        render={({ field }: { field: any }) => (
                             <FormItem>
                                 <FormLabel>Status</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -247,7 +277,7 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                 <FormField
                     control={form.control}
                     name="cover_image_url"
-                    render={({ field }) => (
+                    render={({ field }: { field: any }) => (
                         <FormItem>
                             <FormLabel>Cover Image</FormLabel>
                             <div className="flex gap-4 items-start">
@@ -282,7 +312,7 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                     <FormField
                         control={form.control}
                         name="content"
-                        render={({ field }) => (
+                        render={({ field }: { field: any }) => (
                             <FormItem>
                                 <FormLabel>Content</FormLabel>
                                 <FormControl>
@@ -322,7 +352,7 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                     <FormField
                         control={form.control}
                         name="is_featured"
-                        render={({ field }) => (
+                        render={({ field }: { field: any }) => (
                             <FormItem className="flex flex-row items-center justify-between rounded-lg p-0 space-y-0 gap-2">
                                 <FormControl>
                                     <Switch
@@ -345,7 +375,7 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                     <FormField
                         control={form.control}
                         name="change_summary"
-                        render={({ field }) => (
+                        render={({ field }: { field: any }) => (
                             <FormItem>
                                 <FormLabel>Change Summary (Required for updates)</FormLabel>
                                 <FormControl>
@@ -357,16 +387,47 @@ export function DocumentForm({ tenantId, slug, document }: DocumentFormProps) {
                     />
                 )}
 
-                <Button type="submit" disabled={isUploading || form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Saving...
-                        </>
-                    ) : (
-                        document ? "Update Document" : "Create Document"
+                <div className="flex items-center justify-between pt-4 border-t">
+                    <Button type="submit" disabled={isUploading || form.formState.isSubmitting}>
+                        {form.formState.isSubmitting ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Saving...
+                            </>
+                        ) : (
+                            document ? "Update Document" : "Create Document"
+                        )}
+                    </Button>
+
+                    {document && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button type="button" variant="destructive" className="gap-2">
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete Document
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will permanently delete "{document.title}" and purge all related AI embeddings.
+                                        This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={handleDelete}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                        Delete
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     )}
-                </Button>
+                </div>
             </form>
         </Form>
     )

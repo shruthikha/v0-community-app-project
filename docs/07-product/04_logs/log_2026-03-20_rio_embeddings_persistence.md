@@ -2,8 +2,8 @@
 **Issue:** #189, #190, #191 | **Date:** 2026-03-20 | **Status**: ✅ Done
 
 ## Context
-- **PRD Link**: [Sprint 9 PRD](file:///Users/mj/Developer/v0-community-app-project/docs/07-product/03_prds/prd_2026-03-19_sprint_9_rio_ingestion.md)
-- **Req Link**: [scope_160_ingestion_pipeline.md](file:///Users/mj/Developer/v0-community-app-project/docs/07-product/05_plans/scope_160_ingestion_pipeline.md)
+- **PRD Link**: [Sprint 9 PRD](../03_prds/prd_2026-03-19_sprint_9_rio_ingestion.md)
+- **Req Link**: [scope_160_ingestion_pipeline.md](../../05_plans/scope_160_ingestion_pipeline.md)
 - **Board Status**: Initializing local build. 
 - **Patterns Noted**: 
     - **[2026-03-20] Structure-Aware Chunking**: Chunks preserve hierarchy and table rows.
@@ -31,7 +31,13 @@
 <!-- Agent-to-Agent context transfers -->
 
 ## Blockers & Errors
-{{ ... }}
+- [Resolved] Unauthenticated Ingest Endpoint in `packages/rio-agent/src/index.ts`.
+- [Resolved] SQL RPC Vulnerabilities in `upsert_document_chunks`.
+- [Resolved] Auth Logic Drift in `app/api/v1/ai/ingest/route.ts`.
+- [Resolved] Storage Key Overwrites in `seed-pilot-docs.ts`.
+- [Resolved] Supabase Init fallback bug in `lib/supabase.ts`.
+- [Resolved] Test Gaps in `embeddings.test.ts` (batching verified).
+- [Resolved] Race Condition in `workflows/ingest.ts` (atomic status update).
 
 ## Decisions
 - **Decision: Unified Implementation**: Issues 189-191 will be implemented together to ensure transactional integrity between vectors and text chunks.
