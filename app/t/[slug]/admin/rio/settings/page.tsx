@@ -46,11 +46,13 @@ export default async function RioSettingsPage({
     }
 
     // 5. Fetch Configuration
+    // Use maybeSingle() — returns null (not error) when no config row exists yet.
+    // The first save via updateRioSettings() will auto-create it via upsert.
     const { data: config } = await supabase
         .from("rio_configurations")
         .select("*")
         .eq("tenant_id", tenant.id)
-        .single()
+        .maybeSingle()
 
     const initialData: RioSettingsPayload = {
         persona: (config as any)?.prompt_persona || "",

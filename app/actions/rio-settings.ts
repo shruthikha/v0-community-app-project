@@ -51,11 +51,12 @@ export async function updateRioSettings(slug: string, tenantId: string, payload:
     }
 
     // 3. Metadata Merge & Required Fields
+    // Use maybeSingle() — returns null (not error) on first save when no row exists yet
     const { data: config } = await supabase
         .from('rio_configurations')
         .select('metadata, prompt_community_name')
         .eq('tenant_id', tenantId)
-        .single()
+        .maybeSingle()
 
     const existingMetadata = config?.metadata || {}
     const communityName = config?.prompt_community_name || slug // Fallback to slug if not set

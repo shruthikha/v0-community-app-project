@@ -409,7 +409,7 @@ This ensures only occupied interests are shown, and newly created interests appe
 **Fix**: ALWAYS use a validation schema (like **Zod**) at the very entry point of your service handler. Parse the request body and validate required fields (`messages`, `threadId`, etc.) BEFORE any logic or database lookups occur. Return a **400 Bad Request** with clear structural errors if the shape is invalid. This ensures your service "fails fast" and remains robust against malformed client requests.
 ### [2026-03-21] Embedding Dimension Strictness
 **Type**: Gotcha
-**Context**: Issue #160 (RAG Ingestion). `gemini-embedding-001` (v1) outputs 768 dimensions, but AI-generated migrations often assume 1536 (OpenAI standard).
+**Context**: Issue #160 (RAG Ingestion). `gemini-embedding-001` (v1) outputs 768 dimensions, while `openai/text-embedding-3-small` (our standardized model) outputs 1536 dimensions.
 **Problem**: pgvector `vector(1536)` columns REJECT 768-dim inserts. Silent failure or truncation in some clients can corrupt semantic recall.
 **Fix**: Always match the model to the column. If using a 1536-dim column, use `text-embedding-3-small`. Otherwise, migrate the column to `vector(768)`.
 

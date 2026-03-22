@@ -456,7 +456,7 @@ export function containsInjection(text: string): boolean {
 ### 🛡️ Security & Infrastructure
 - **Hardened Document Deletion**: Implemented tenant-aware cascade deletion via Postgres RPC (`delete_document_with_rio_cascade`), ensuring cross-tenant data isolation.
 - **Storage Path Isolation**: Enforced path-based RLS on the `documents` bucket to prevent unauthorized cross-tenant file manipulation.
-- **Vector Parity**: Migrated to **Gemini Embeddings** (1536 dims) for superior semantic search performance.
+- **Vector Parity**: Migrated to **OpenAI `text-embedding-3-small`** (1536 dims) for superior semantic search performance and architectural consistency.
 
 ### 🏗️ Application Stability
 - **Atomic Ingestion**: Replaced race-prone ingestion triggers with atomic upserts (`upsert_rio_document_if_not_processing`) to ensure consistent document status transitions.

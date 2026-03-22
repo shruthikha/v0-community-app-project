@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS public.rio_document_chunks (
     document_id UUID REFERENCES public.rio_documents(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     metadata JSONB DEFAULT '{}'::jsonb,
-    embedding extensions.vector(1536), -- 1536 dimensions for gemini-embedding-001
+    embedding extensions.vector(1536), -- 1536 dimensions for openai/text-embedding-3-small
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
