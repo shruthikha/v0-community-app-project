@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     try {
         const railwayUrl = process.env.RIO_RAILWAY_URL || process.env.RIO_AGENT_URL || 'http://localhost:3001'
 
-        const response = await fetch(`${railwayUrl}/api/health`, {
+        const response = await fetch(`${railwayUrl}/health`, {
             method: 'GET',
             cache: 'no-store',
             signal: controller.signal

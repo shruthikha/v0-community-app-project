@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-            const response = await fetch(`${railwayUrl}/api/ingest`, {
+            const response = await fetch(`${railwayUrl}/ingest`, {
                 method: 'POST',
                 headers: railwaysHeaders,
                 body: JSON.stringify({
