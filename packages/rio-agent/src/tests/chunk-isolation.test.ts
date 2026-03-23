@@ -60,7 +60,11 @@ describe('Cross-Tenant Chunk Isolation', () => {
 
         pool = new Pool({
             connectionString,
-            ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
+            ssl: connectionString.includes('localhost')
+                ? false
+                : process.env.NODE_ENV === 'production'
+                    ? { ca: process.env.RIO_DATABASE_CA_CERT, rejectUnauthorized: true }
+                    : { rejectUnauthorized: false },
             max: 20
         });
 

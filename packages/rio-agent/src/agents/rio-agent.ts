@@ -1,8 +1,14 @@
 import { Agent } from "@mastra/core/agent";
+import { createTool } from "@mastra/core/tools";
 import { Memory } from "@mastra/memory";
 import { PostgresStore } from "@mastra/pg";
+import { z } from "zod";
+import pg from "pg";
+import { generateEmbedding } from "../lib/embeddings.js";
 
-export const RIO_MODEL_ID = "openai/gpt-4o-mini";
+const { Pool } = pg;
+
+export const RIO_MODEL_ID = "google/gemini-2.5-flash";
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 const connectionString = process.env.RIO_DATABASE_URL;
 
@@ -13,8 +19,23 @@ if (!openRouterApiKey && process.env.NODE_ENV !== "development") {
 }
 
 if (!connectionString) {
-    throw new Error("RIO_DATABASE_URL is not set.");
+    if (process.env.NODE_ENV === "production") {
+        throw new Error("RIO_DATABASE_URL is not set.");
+    } else {
+        console.warn("RIO_DATABASE_URL is not set. Database operations will fail.");
+    }
 }
+
+// Persistent pool for RAG searches
+const pool = new Pool({
+    connectionString,
+    ssl: connectionString?.includes("localhost")
+        ? false
+        : process.env.NODE_ENV === "production"
+            ? { ca: process.env.RIO_DATABASE_CA_CERT, rejectUnauthorized: true }
+            : { rejectUnauthorized: false },
+    max: 10,
+});
 
 /**
  * RioAgent — Sprint 0 scaffold stub.
@@ -28,6 +49,64 @@ export const memory = new Memory({
         id: "rio-memory-store",
         connectionString,
     }),
+});
+
+/**
+ * RAG Tool: search_documents
+ * Performs semantic search over community documents with strict tenant isolation.
+ */
+export const search_documents = createTool({
+    id: "search_documents",
+    description: "Search through the community's internal documents, bylaws, and guides to find relevant information.",
+    inputSchema: z.object({
+        query: z.string().describe("The search query for the semantic search"),
+    }),
+    execute: async (input, context) => {
+        // Access tenantId and ragEnabled from agent context
+        const tenantId = (context as any)?.memory?.metadata?.tenantId;
+        const ragEnabled = (context as any)?.memory?.metadata?.ragEnabled === true;
+
+        if (process.env.NODE_ENV === "development") {
+            console.debug(`[TOOL:SEARCH] Query: "${input.query}", tenantId: ${tenantId}, ragEnabled: ${ragEnabled}`);
+        }
+
+        if (!tenantId) {
+            console.error(`[TOOL:SEARCH] Failed: Tenant ID missing in context`);
+            return { error: "Tenant context missing. Unable to perform search." };
+        }
+
+        if (!ragEnabled) {
+            return {
+                info: "RAG search is currently disabled for this community. Please answer based on your general knowledge or ask the user to contact an admin.",
+                results: []
+            };
+        }
+
+        try {
+            // 1. Generate embedding for the search query
+            const queryEmbedding = await generateEmbedding(input.query);
+
+            // 2. Perform vector similarity search with strict tenant filtering
+            const { rows } = await pool.query(
+                `SELECT content, metadata
+                 FROM public.rio_document_chunks 
+                 WHERE tenant_id = $1 
+                 ORDER BY embedding <=> $2::vector
+                 LIMIT 10`,
+                [tenantId, `[${queryEmbedding.join(",")}]`]
+            );
+
+            return {
+                results: rows.map((r: any) => ({
+                    content: r.content,
+                    metadata: r.metadata,
+                })),
+            };
+        } catch (error: any) {
+            console.error("[TOOL:SEARCH] Error:", error);
+            return { error: "Failed to search documents." };
+        }
+    },
 });
 
 export const rioAgent = new Agent({
@@ -53,6 +132,9 @@ export const rioAgent = new Agent({
         apiKey: openRouterApiKey ?? "stub-key",
     },
     memory,
+    tools: {
+        search_documents,
+    },
 });
 
 console.log("RioAgent initialized");

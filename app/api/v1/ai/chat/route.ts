@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
             )
         }
 
-        // 1.2 Check Feature Flags (Dual-Flag Gate)
+        // 1.2 Check Feature Flags (Granular Gating #195)
         const { data: tenant, error: tenantError } = await supabase
             .from('tenants')
             .select('features')
@@ -64,16 +64,19 @@ export async function POST(req: NextRequest) {
             .single()
 
         const rioConfig = tenant?.features?.rio
-        const isRioFullyEnabled = rioConfig?.enabled && rioConfig?.rag
 
-        if (tenantError || !isRioFullyEnabled) {
+        // Strict Check: Bio AI must be enabled
+        if (tenantError || !rioConfig?.enabled) {
             clearTimeout(totalTimeoutId)
-            console.warn(`[API/v1/ai/chat] Access denied for tenant ${requestedTenantId}: Rio or RAG disabled`)
+            console.warn(`[API/v1/ai/chat] Access denied for tenant ${requestedTenantId}: Rio disabled`)
             return NextResponse.json(
-                { success: false, error: { message: 'Río AI or RAG is not enabled for this community', code: 'FORBIDDEN' } },
+                { success: false, error: { message: 'Río AI is not enabled for this community', code: 'FORBIDDEN' } },
                 { status: 403 }
             )
         }
+
+        // RAG flag (Determines if the agent can use document search tools)
+        const isRagEnabled = !!rioConfig?.rag
 
         const messages = body.messages || []
         const threadId = body.threadId
@@ -93,11 +96,12 @@ export async function POST(req: NextRequest) {
             const connectionTimeout = setTimeout(() => connectionController.abort(), 15000) // 15s Tier 1
 
             try {
-                // Link both signals: if either the 15s connection timeout OR the 30s total timeout fires, abort.
-                // Note: AbortSignal.any is available in Node 18.16+ and modern browsers.
-                const linkedSignal = (AbortSignal as any).any
-                    ? (AbortSignal as any).any([controller.signal, connectionController.signal])
-                    : connectionController.signal
+                // Manual signal linking for reliable timeout behavior across all Node.js versions
+                const linkedController = new AbortController()
+                const abortHandler = (reason: any) => linkedController.abort(reason)
+                controller.signal.addEventListener('abort', abortHandler, { once: true })
+                connectionController.signal.addEventListener('abort', abortHandler, { once: true })
+                const linkedSignal = linkedController.signal
 
                 response = await fetch(`${railwayUrl}/api/chat`, {
                     method: 'POST',
@@ -105,6 +109,7 @@ export async function POST(req: NextRequest) {
                         'Content-Type': 'application/json',
                         'x-tenant-id': requestedTenantId,
                         'x-user-id': user.id,
+                        'x-rag-enabled': String(isRagEnabled),
                         'x-idempotency-key': idempotencyKey
                     },
                     body: JSON.stringify({

@@ -13,7 +13,7 @@ import { PatternRedactor } from "./lib/pattern-redactor.js";
 import { sha256 } from "./lib/sha256.js";
 
 import { ingestionWorkflow } from "./workflows/ingest.js";
-import { claimDocument, updateDocStatus } from "./lib/supabase.js";
+import { claimDocument, updateDocStatus, supabaseAdmin } from "./lib/supabase.js";
 
 const threadStore = new ThreadStore(memory);
 
@@ -202,9 +202,51 @@ export const mastra = new Mastra({
                     const hashedUserId = maskId(userId);
                     const hashedTenantId = maskId(tenantId);
 
+                    const ragEnabledHeader = c.req.header("x-rag-enabled");
+                    const isRagEnabled = ragEnabledHeader !== "false";
+
+                    // 3-Tier Prompt Composition (#193)
+                    let systemPrompt = rioAgent.instructions;
+                    try {
+                        const { data: config } = await supabaseAdmin
+                            .from("rio_configurations")
+                            .select("persona, community_policies, emergency_contacts")
+                            .eq("tenant_id", tenantId)
+                            .single();
+
+                        if (config) {
+                            systemPrompt = `
+${rioAgent.instructions}
+
+## Community Specific Context
+You are currently assisting a resident of this specific community. Use the following context to tailor your answers:
+
+### Your Persona in this community
+${config.persona || "Helpful Neighbor"}
+
+### Community Policies & Rules
+${config.community_policies || "Follow general community guidelines."}
+
+### Emergency Contacts
+${config.emergency_contacts || "Contact local emergency services for immediate help."}
+
+---
+Always prioritize community policies and emergency steps if the situation warrants it.
+`;
+                        }
+                    } catch (e) {
+                        console.warn(`[RIO-AGENT] Failed to fetch community context for ${maskId(tenantId)}, falling back to defaults.`);
+                    }
+
+                    // Inject system prompt as the first message
+                    const messagesWithPrompt = [
+                        { role: "system", content: systemPrompt },
+                        ...messages
+                    ];
+
                     // Mastra v1.x .stream() returns a MastraModelOutput object
-                    console.log(`[RIO-AGENT] Starting stream for thread: ${maskId(effectiveThreadId)}`);
-                    const result = await rioAgent.stream(messages, {
+                    console.log(`[RIO-AGENT] Starting stream for thread: ${maskId(effectiveThreadId)} (RAG: ${isRagEnabled})`);
+                    const result = await rioAgent.stream(messagesWithPrompt, {
                         memory: {
                             thread: threadStore.generateTenantThreadId(tenantId as string, effectiveThreadId),
                             resource: "rio-chat",
@@ -212,10 +254,11 @@ export const mastra = new Mastra({
                                 ...(thread?.metadata || {}),
                                 tenantId: tenantId,
                                 userId: userId,
+                                ragEnabled: isRagEnabled,
                                 tenant_id_hash: sha256(tenantId as string),
                                 user_id_hash: sha256(userId as string),
                                 model: RIO_MODEL_ID,
-                                sprint: "7",
+                                sprint: "11",
                             },
                         } as any,
                         // PR Feedback (r2943050035): propagating abort signal

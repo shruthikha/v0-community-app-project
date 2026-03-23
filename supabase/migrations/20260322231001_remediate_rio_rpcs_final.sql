@@ -73,11 +73,17 @@ BEGIN
   AND rio_documents.status <> 'processing'
   RETURNING rio_documents.id, rio_documents.status INTO v_id, v_status;
 
-  -- Fallback for concurrency or if status was 'processing'
+  -- 2. Fallback: If no row was returned (because it was 'processing' and skipped), 
+  -- fetch the existing state to return to the caller.
   IF v_id IS NULL THEN
-    SELECT d.id, d.status INTO v_id, v_status
+    SELECT d.id, d.status, d.tenant_id INTO v_id, v_status, v_existing_tenant_id
     FROM public.rio_documents d
     WHERE d.source_document_id = p_source_document_id;
+
+    -- Security re-check in fallback to prevent narrow race condition leakage
+    IF v_existing_tenant_id IS NOT NULL AND v_existing_tenant_id <> p_tenant_id THEN
+      RAISE EXCEPTION 'Access Denied: Document % belongs to another tenant', p_source_document_id;
+    END IF;
   END IF;
 
   RETURN QUERY SELECT v_id, v_status;

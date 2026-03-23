@@ -13,6 +13,7 @@ RETURNS TABLE (
 ) 
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_catalog
 AS $$
 DECLARE
   v_id UUID;
@@ -57,4 +58,4 @@ END;
 $$;
 
 -- Grant access (idempotent)
-GRANT EXECUTE ON FUNCTION public.upsert_rio_document_if_not_processing(UUID, UUID, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.upsert_rio_document_if_not_processing(UUID, UUID, TEXT) TO service_role;

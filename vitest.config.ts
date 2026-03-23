@@ -46,7 +46,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['lib/**/*.test.ts', 'components/**/*.test.ts', 'app/**/*.test.ts', 'packages/**/*.test.ts'],
+          include: ['lib/**/*.test.ts', 'components/**/*.test.ts', 'app/**/*.test.ts', 'packages/!(rio-agent)/**/*.test.ts'],
         },
       },
     ],

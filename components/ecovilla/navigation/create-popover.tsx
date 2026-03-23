@@ -2,7 +2,20 @@
 
 import React from "react"
 import Link from "next/link"
-import { MapPin, Calendar, ShoppingBag, ClipboardList, Smile } from "lucide-react"
+import {
+    Plus,
+    Calendar,
+    MessageCircle,
+    FileText,
+    HelpCircle,
+    UserPlus,
+    Building2,
+    Smile,
+    Bot,
+    MapPin,
+    ShoppingBag,
+    ClipboardList
+} from "lucide-react"
 import {
     Popover,
     PopoverContent,
@@ -58,15 +71,6 @@ export function CreatePopover({
             bgColor: "bg-sunrise-soft",
             borderColor: "border-sunrise-soft",
         },
-        ...(rioEnabled ? [{
-            icon: Smile, // Or a chatbot icon if available
-            title: "Chat with Río",
-            description: "AI Assistant",
-            href: `/t/${tenantSlug}/dashboard/rio`,
-            color: "text-forest-canopy",
-            bgColor: "bg-forest-soft",
-            borderColor: "border-forest-gentle",
-        }] : []),
         {
             icon: MapPin,
             title: "Check-in",

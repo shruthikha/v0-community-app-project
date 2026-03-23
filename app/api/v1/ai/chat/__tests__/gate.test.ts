@@ -56,7 +56,7 @@ describe('AI Chat BFF Gate (#199)', () => {
         expect(body.error.code).toBe('FORBIDDEN')
     })
 
-    it('should return 403 if RAG is disabled even if Río is enabled', async () => {
+    it('should allow request (200 OK) if Río is enabled even if RAG is disabled', async () => {
         mockSupabase.auth.getUser.mockResolvedValue({
             data: { user: { id: 'user-123', app_metadata: { tenant_id: 'tenant-123' } } },
             error: null
@@ -67,13 +67,21 @@ describe('AI Chat BFF Gate (#199)', () => {
             error: null
         })
 
+        // Mock fetch to Railway
+        const mockResponse = {
+            ok: true,
+            status: 200,
+            body: new ReadableStream({ start(c) { c.close() } })
+        }
+            ; (global.fetch as any).mockResolvedValue(mockResponse)
+
         const req = new NextRequest('http://localhost/api/v1/ai/chat', {
             method: 'POST',
-            body: JSON.stringify({ tenantId: 'tenant-123' })
+            body: JSON.stringify({ tenantId: 'tenant-123', messages: [] })
         })
 
         const res = await POST(req)
-        expect(res.status).toBe(403)
+        expect(res.status).toBe(200)
     })
 
     it('should allow request if both Río and RAG are enabled', async () => {
@@ -116,6 +124,12 @@ describe('AI Chat BFF Gate (#199)', () => {
             error: null
         })
 
+        // This won't be reached due to tenant mismatch check, but mock anyway for clarity
+        mockSupabase.single.mockResolvedValue({
+            data: { features: { rio: { enabled: true } } },
+            error: null
+        })
+
         const req = new NextRequest('http://localhost/api/v1/ai/chat', {
             method: 'POST',
             body: JSON.stringify({ tenantId: 'ATTACKER-TENANT' })
@@ -123,5 +137,7 @@ describe('AI Chat BFF Gate (#199)', () => {
 
         const res = await POST(req)
         expect(res.status).toBe(403)
+        const body = await res.json()
+        expect(body.error.message).toContain('Mismatched tenant context')
     })
 })

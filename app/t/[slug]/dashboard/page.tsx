@@ -141,7 +141,7 @@ export default async function ResidentDashboardPage({ params }: { params: Promis
   }
   const mergedFeatures = { ...defaultFeatures, ...(tenant?.features || {}) }
   const mapEnabled = mergedFeatures.map === true
-  const rioEnabled = mergedFeatures.rio?.enabled === true
+  const rioEnabled = (mergedFeatures.rio?.enabled && mergedFeatures.rio?.rag) === true
   const reservationsEnabled = tenant?.reservations_enabled === true
 
   let lotLocationId: string | undefined
