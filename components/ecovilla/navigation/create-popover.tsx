@@ -28,6 +28,7 @@ import { useState } from "react"
 import { CreateCheckInModal } from "@/components/check-ins/create-check-in-modal"
 import { CreateExchangeListingModal } from "@/components/exchange/create-exchange-listing-modal"
 import { useUserJot } from "@/components/userjot/userjot-provider"
+import { useRioChat } from "@/hooks/use-rio-chat"
 
 interface CreatePopoverProps {
     open: boolean
@@ -57,8 +58,23 @@ export function CreatePopover({
     const [showCheckIn, setShowCheckIn] = useState(false)
     const [showListing, setShowListing] = useState(false)
     const { openWidget } = useUserJot()
+    const { openChat } = useRioChat()
+
+    const rioAction = rioEnabled ? [{
+        icon: Bot,
+        title: "Chat with Río",
+        description: "Ask a question",
+        onClick: () => {
+            onOpenChange(false)
+            openChat()
+        },
+        color: "text-orange-600",
+        bgColor: "bg-orange-50",
+        borderColor: "border-orange-100",
+    }] : []
 
     const actions = [
+        ...rioAction,
         {
             icon: Smile,
             title: "Give feedback",

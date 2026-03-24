@@ -30,21 +30,40 @@ describe('RAG Tool: search_documents (#193)', () => {
         });
 
         // Ensure we have some test data (this assumes the pilot seed has run, 
-        // but we'll add a specific test chunk just in case)
+        // but we'll add a specific test document and chunk just in case)
         const mockEmbedding = new Array(1536).fill(0.1);
-        await pool.query(
-            `INSERT INTO public.rio_document_chunks (tenant_id, content, embedding, metadata) 
+
+        // 1. Seed a test document
+        const docResult = await pool.query(
+            `INSERT INTO public.rio_documents (tenant_id, name, status, metadata) 
              VALUES ($1, $2, $3, $4)
-             ON CONFLICT DO NOTHING`,
-            [ALEGRIA_ID, 'Test content for Alegria', `[${mockEmbedding.join(',')}]`, JSON.stringify({ is_test: true })]
+             ON CONFLICT DO NOTHING
+             RETURNING id`,
+            [ALEGRIA_ID, 'Alegria Test Doc', 'ready', JSON.stringify({ is_test: true })]
         );
+
+        const documentId = docResult.rows[0]?.id;
+
+        // 2. Seed a test chunk associated with that document
+        if (documentId) {
+            await pool.query(
+                `INSERT INTO public.rio_document_chunks (tenant_id, document_id, content, embedding, metadata) 
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT DO NOTHING`,
+                [ALEGRIA_ID, documentId, 'Test content for Alegria', `[${mockEmbedding.join(',')}]`, JSON.stringify({ is_test: true })]
+            );
+        }
     });
 
     afterAll(async () => {
         if (pool) {
-            // Clean up test-specific data
+            // Clean up test-specific data from both tables
+            // Order is important because of foreign key constraint
             await pool.query(
-                `DELETE FROM public.rio_document_chunks WHERE metadata->>'is_test' = 'true'`
+                `DELETE FROM public.rio_document_chunks WHERE (metadata->>'is_test')::boolean IS TRUE`
+            );
+            await pool.query(
+                `DELETE FROM public.rio_documents WHERE (metadata->>'is_test')::boolean IS TRUE`
             );
             await pool.end();
         }

@@ -87,7 +87,7 @@
     "lucide-react": "^0.454.0",
     "mapbox-gl": "^2.15.0",
     "motion": "^12.23.24",
-    "next": "^16.0.10",
+    "next": "16.1.7",
     "next-themes": "^0.4.6",
     "posthog-js": "^1.306.1",
     "proj4": "latest",
@@ -112,7 +112,8 @@
     "undici": "^6.21.0",
     "uuid": "13.0.0",
     "vaul": "^0.9.9",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^4.1.3",

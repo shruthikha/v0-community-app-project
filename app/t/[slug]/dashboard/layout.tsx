@@ -66,6 +66,7 @@ export default async function ResidentDashboardLayout({
   ])
 
   const userNavData = {
+    id: user.id,
     name: resident?.first_name ? `${resident.first_name} ${resident.last_name}` : user.email || "User",
     avatarUrl: resident?.profile_picture_url,
     unreadAnnouncements,

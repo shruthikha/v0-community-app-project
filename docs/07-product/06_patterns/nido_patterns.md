@@ -467,3 +467,16 @@ This ensures a robust, fail-safe user experience even under heavy load.
 **Problem**: Semantic search breaks if chunks for the same tenant use different models or dimensions.
 **Rule**: Always store the `embedding_model` name alongside the document. This allows the system to detect "Stale Embeddings" and prompt for a manual re-index when global model defaults change.
 
+### [2026-03-24] RAG Relationship Strictness
+**Type**: Gotcha
+**Context**: Issue #193 (RAG Integration). The `search_documents` tool performed an `INNER JOIN` between `rio_document_chunks` and `rio_documents` to retrieve metadata (document name, source URL) for citations.
+**Problem**: In tests/seeding, if only chunks were inserted without the corresponding `rio_documents` record, the search would return zero results despite vector similarity, causing silent RAG failures.
+**Fix**: ALWAYS seed the parent `rio_documents` record before inserting chunks. Ensure the `document_id` in chunks matches a valid record in the parent table to satisfy the join.
+
+### [2026-03-24] Zero Policy Storage & Signed URLs
+**Type**: Pattern
+**Context**: Vibe Code Check Phase 2. The `documents` bucket was initially public, exposing knowledge base files to unauthenticated URL probing.
+**Rule**: Storage buckets for internal or semi-private documentation MUST be private (`public: false`). 
+**Implementation**: 
+1. The Agent (Backend) uses `SUPABASE_SERVICE_ROLE_KEY` to download files directly for processing.
+2. The Client (Frontend) must use `supabase.storage.from('documents').createSignedUrl(path, 60)` to provide temporary access to residents for viewing sources. This ensures that even if a URL leaks, it is short-lived and non-predictable.

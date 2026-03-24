@@ -8,7 +8,7 @@ The pipeline is implemented as a **Mastra Workflow** in `packages/rio-agent/src/
 ## Workflow Steps
 
 ### 1. File Retrieval (`fetchStep`)
-- **Action**: Downloads the document blob from the `documents` Supabase bucket using a relative path or full Public URL.
+- **Action**: Downloads the document blob from the **private** `documents` Supabase bucket using a relative path.
 - **Authentication**: Uses `SUPABASE_SERVICE_ROLE_KEY` via the `downloadDocument` helper.
 - **Output**: A Buffer suitable for parsing.
 
@@ -20,6 +20,7 @@ The pipeline is implemented as a **Mastra Workflow** in `packages/rio-agent/src/
 
 ### 3. Structure-Aware Chunking (`chunkStep`)
 - **Logic**: Custom chunker in `src/lib/chunker.ts`.
+- **Filename Randomization**: Each uploaded asset is renamed to `[type]-[documentId].[ext]` (e.g., `page-abc-123.html`) to prevent filename enumeration in storage.
 - **Multi-Phase Split**:
     1. **Boundary Splitting**: Splits the Markdown by Top-Level Headers (H1/H2). This prevents a single chunk from merging two unrelated topics.
     2. **Atomic Tables**: Ensures table structures stay intact within a single chunk where possible.

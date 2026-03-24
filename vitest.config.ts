@@ -46,7 +46,24 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['lib/**/*.test.ts', 'components/**/*.test.ts', 'app/**/*.test.ts', 'packages/!(rio-agent)/**/*.test.ts'],
+          include: [
+            'lib/**/*.test.{ts,tsx}',
+            'app/**/*.test.{ts,tsx}',
+            'packages/**/*.test.{ts,tsx}'
+          ],
+        },
+      },
+      {
+        resolve: {
+          alias: {
+            '@': path.resolve(dirname, '.'),
+          },
+        },
+        test: {
+          name: 'components',
+          environment: 'jsdom',
+          include: ['components/**/*.test.{ts,tsx}'],
+          setupFiles: ['./vitest.setup.ts'],
         },
       },
     ],

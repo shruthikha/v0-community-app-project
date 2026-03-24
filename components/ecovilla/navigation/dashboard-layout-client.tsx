@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react"
 import { MobileNav } from "@/components/ecovilla/navigation/mobile-nav"
 import { DesktopNav } from "@/components/ecovilla/navigation/desktop-nav"
 import { CreateFab } from "@/components/ecovilla/navigation/create-fab"
+import { RioChatSheet } from "@/components/ecovilla/chat/RioChatSheet"
 import { cn } from "@/lib/utils"
 import { LanguageProvider } from "@/lib/i18n"
 
@@ -13,6 +14,7 @@ interface DashboardLayoutClientProps {
     tenantName: string
     tenantLogoUrl?: string
     user: {
+        id: string
         name: string
         avatarUrl?: string | null
         unreadAnnouncements?: number
@@ -95,6 +97,9 @@ export function DashboardLayoutClient({
                     neighborhoods={neighborhoods}
                     rioEnabled={rioEnabled}
                 />
+
+                {/* Global Chat Sheet */}
+                <RioChatSheet tenantId={tenantId} tenantSlug={slug} userId={user.id} />
             </div>
         </LanguageProvider>
     )

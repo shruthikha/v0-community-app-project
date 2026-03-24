@@ -119,8 +119,14 @@ export async function updateDocStatus(
 export async function downloadDocument(path: string): Promise<Buffer | null> {
     // If path is a full URL, extract the relative storage path
     let storagePath = path;
-    if (path.includes('/storage/v1/object/public/documents/')) {
-        storagePath = path.split('/storage/v1/object/public/documents/')[1];
+    // Support both public and authenticated storage URL patterns for path extraction
+    const publicPrefix = '/storage/v1/object/public/documents/';
+    const authPrefix = '/storage/v1/object/authenticated/documents/';
+
+    if (path.includes(publicPrefix)) {
+        storagePath = path.split(publicPrefix)[1];
+    } else if (path.includes(authPrefix)) {
+        storagePath = path.split(authPrefix)[1];
     } else if (path.startsWith('http')) {
         // Handle generic URLs if they contain the bucket name
         const bucketMatch = path.match(/\/documents\/(.+)$/);

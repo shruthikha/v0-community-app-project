@@ -24,6 +24,16 @@ interface MobileNavProps {
 }
 
 export function MobileNav({ tenantSlug, user, tenantId, categories, neighborhoods, rioEnabled = false }: MobileNavProps) {
+    const [hasMounted, setHasMounted] = React.useState(false)
+
+    React.useEffect(() => {
+        setHasMounted(true)
+    }, [])
+
+    if (!hasMounted) {
+        return null
+    }
+
     return (
         <div className="md:hidden">
             <MobileTopBar tenantSlug={tenantSlug} user={user} />

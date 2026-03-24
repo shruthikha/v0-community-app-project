@@ -12,7 +12,7 @@ export const RIO_MODEL_ID = "google/gemini-2.5-flash";
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 const connectionString = process.env.RIO_DATABASE_URL;
 
-if (!openRouterApiKey && process.env.NODE_ENV !== "development") {
+if (!openRouterApiKey && process.env.NODE_ENV === "production") {
     throw new Error(
         "OPENROUTER_API_KEY is not set. Please add the OpenRouter API key to your environment variables.",
     );
@@ -26,16 +26,7 @@ if (!connectionString) {
     }
 }
 
-// Persistent pool for RAG searches
-const pool = new Pool({
-    connectionString,
-    ssl: connectionString?.includes("localhost")
-        ? false
-        : process.env.NODE_ENV === "production"
-            ? { ca: process.env.RIO_DATABASE_CA_CERT, rejectUnauthorized: true }
-            : { rejectUnauthorized: false },
-    max: 10,
-});
+import { pool } from "../lib/db";
 
 /**
  * RioAgent — Sprint 0 scaffold stub.
@@ -62,12 +53,24 @@ export const search_documents = createTool({
         query: z.string().describe("The search query for the semantic search"),
     }),
     execute: async (input, context) => {
-        // Access tenantId and ragEnabled from agent context
-        const tenantId = (context as any)?.memory?.metadata?.tenantId;
-        const ragEnabled = (context as any)?.memory?.metadata?.ragEnabled === true;
+        // Robust Metadata Retrieval (#193 remediation)
+        // We try RequestContext (official), then Agent Memory (fallback), then any potential flat properties
+        const rawTenantId =
+            context.requestContext?.get?.("tenantId") ||
+            (context as any)?.memory?.metadata?.tenantId ||
+            (context as any)?.tenantId;
 
-        if (process.env.NODE_ENV === "development") {
-            console.debug(`[TOOL:SEARCH] Query: "${input.query}", tenantId: ${tenantId}, ragEnabled: ${ragEnabled}`);
+        const rawRagEnabled =
+            context.requestContext?.get?.("ragEnabled") ||
+            (context as any)?.memory?.metadata?.ragEnabled ||
+            (context as any)?.ragEnabled;
+
+        const tenantId = typeof rawTenantId === "string" ? rawTenantId.trim() : undefined;
+        const ragEnabled = rawRagEnabled === true || rawRagEnabled === "true";
+
+        if (process.env.DEBUG_LOGGING === "true" || process.env.NODE_ENV === "development") {
+            console.log(`[TOOL:SEARCH] Resolve for tenantId: "${tenantId}", ragEnabled: ${ragEnabled}`);
+            console.log(`[TOOL:SEARCH] Begin search for query: "${input.query}"`);
         }
 
         if (!tenantId) {
@@ -78,7 +81,7 @@ export const search_documents = createTool({
         if (!ragEnabled) {
             return {
                 info: "RAG search is currently disabled for this community. Please answer based on your general knowledge or ask the user to contact an admin.",
-                results: []
+                results: [],
             };
         }
 
@@ -86,25 +89,27 @@ export const search_documents = createTool({
             // 1. Generate embedding for the search query
             const queryEmbedding = await generateEmbedding(input.query);
 
-            // 2. Perform vector similarity search with strict tenant filtering
+            // 2. Perform vector similarity search with strict tenant filtering and document name join
             const { rows } = await pool.query(
-                `SELECT content, metadata
-                 FROM public.rio_document_chunks 
-                 WHERE tenant_id = $1 
-                 ORDER BY embedding <=> $2::vector
+                `SELECT c.content, c.metadata, d.name as document_name
+                 FROM public.rio_document_chunks c
+                 JOIN public.rio_documents d ON c.document_id = d.id
+                 WHERE c.tenant_id = $1 
+                 ORDER BY c.embedding <=> $2::vector
                  LIMIT 10`,
-                [tenantId, `[${queryEmbedding.join(",")}]`]
+                [tenantId, `[${queryEmbedding.join(",")}]`],
             );
 
             return {
                 results: rows.map((r: any) => ({
                     content: r.content,
                     metadata: r.metadata,
+                    documentName: r.document_name || "Community Document",
                 })),
             };
         } catch (error: any) {
-            console.error("[TOOL:SEARCH] Error:", error);
-            return { error: "Failed to search documents." };
+            console.error("[TOOL:SEARCH] Error during query execution:", error);
+            return { error: "Failed to search documents due to an internal error." };
         }
     },
 });
@@ -118,19 +123,15 @@ export const rioAgent = new Agent({
         "You're like a warm, knowledgeable neighbor who's really good at helping people find their way around. You're approachable, calm, and clear — not corporate, not overly formal, and never pushy. Think 70% warm and welcoming, 30% practical guide. Your name is Río.\n\n" +
         "## What you do\n\n" +
         "You help residents navigate their community platform — answering questions, guiding them through features, and making them feel at home. You don't manage the community or make decisions on behalf of admins. You assist residents.\n\n" +
+        "## Citations & Knowledge\n\n" +
+        "Whenever you use information from a document (internal knowledge base), you MUST provide an inline citation using number markers like [1], [2] at the end of the relevant sentence. This helps residents know where the information came from. Each search result you receive will be numbered. Use these numbers for your citations.\n\n" +
         "## How you speak\n\n" +
         "- Use \"you/your\" language — talk to the resident, not about them\n" +
         "- Use contractions naturally (you're, can't, didn't, it's)\n" +
         "- Prefer \"neighbors\" over \"users\" or \"residents\"\n" +
         "- Prefer \"residents\" over \"accounts\"\n" +
         "- Keep it casual but clear",
-    // Sprint 0 stub: OpenAICompatibleConfig pointing at OpenRouter.
-    // Full production wiring (OPENROUTER_API_KEY, tenant tools) in Sprint 8.
-    model: {
-        id: RIO_MODEL_ID as `${string}/${string}`,
-        url: "https://openrouter.ai/api/v1",
-        apiKey: openRouterApiKey ?? "stub-key",
-    },
+    model: RIO_MODEL_ID,
     memory,
     tools: {
         search_documents,

@@ -31,8 +31,10 @@ export async function GET() {
             .single()
 
         if (residentError || !resident) {
+            console.error(`[Dashboard/Priority] 404: Resident not found for user ${user.id}. Role checked: resident. DB Error:`, residentError)
             return NextResponse.json({ error: "Resident not found" }, { status: 404 })
         }
+        console.log(`[Dashboard/Priority] Success: Found resident for user ${user.id} on tenant ${resident.tenant_id}`)
 
         const priorityItems: any[] = []
         const now = new Date()

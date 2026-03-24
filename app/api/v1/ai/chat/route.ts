@@ -45,11 +45,15 @@ export async function POST(req: NextRequest) {
             )
         }
 
+        // Fetch user role and true tenant_id to allow super admins and handle stale JWTs
+        const { data: userData } = await supabase.from('users').select('role, tenant_id').eq('id', user.id).single()
+        const isSuperAdmin = userData?.role === 'super_admin'
+        const actualTenantId = userData?.tenant_id || sessionTenantId
+
         // SECURITY: If requestedTenantId is provided and differs from session, verify impersonation isn't happening
-        // (Unless they are a super_admin, which we could check here, but standard residents must match)
-        if (requestedTenantId !== sessionTenantId) {
+        if (requestedTenantId !== actualTenantId && !isSuperAdmin) {
             clearTimeout(totalTimeoutId)
-            console.error(`[API/v1/ai/chat] SECURITY: User ${user.id} (Tenant ${sessionTenantId}) attempted to access Tenant ${requestedTenantId}`)
+            console.error(`[API/v1/ai/chat] SECURITY: User ${user.id} (JWT: ${sessionTenantId}, DB: ${userData?.tenant_id}) attempted to access Tenant ${requestedTenantId}`)
             return NextResponse.json(
                 { success: false, error: { message: 'Mismatched tenant context', code: 'FORBIDDEN' } },
                 { status: 403 }
@@ -103,19 +107,20 @@ export async function POST(req: NextRequest) {
                 connectionController.signal.addEventListener('abort', abortHandler, { once: true })
                 const linkedSignal = linkedController.signal
 
-                response = await fetch(`${railwayUrl}/api/chat`, {
+                response = await fetch(`${railwayUrl}/chat`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'x-tenant-id': requestedTenantId,
                         'x-user-id': user.id,
                         'x-rag-enabled': String(isRagEnabled),
+                        'x-agent-key': process.env.RIO_AGENT_KEY || '',
                         'x-idempotency-key': idempotencyKey
                     },
                     body: JSON.stringify({
                         messages,
-                        threadId,
-                        resourceId
+                        threadId: threadId || undefined,
+                        resourceId: resourceId || undefined
                     }),
                     signal: linkedSignal
                 })
@@ -157,7 +162,17 @@ export async function POST(req: NextRequest) {
                     { status: 504 }
                 )
             }
-            throw new Error(`Railway agent returned ${response.status}`)
+            // Log the response body if the fetch to the agent fails and it's not a busy state
+            if (response && !response.ok) {
+                const errorText = await response.text()
+                console.error(`[API/v1/ai/chat] Railway agent returned ${response.status}: ${errorText}`)
+                return NextResponse.json(
+                    { success: false, error: { message: `Río AI service encountered an error`, detail: errorText, code: 'INTERNAL_ERROR' } },
+                    { status: 500 }
+                )
+            }
+            // Fallback for other non-ok responses or missing body
+            throw new Error(`Railway agent returned ${response?.status || 'no response'}`)
         }
 
         // 3. Transform Stream for Vercel AI SDK
@@ -191,12 +206,21 @@ export async function POST(req: NextRequest) {
                                     controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(startData)}\n\n`))
                                 }
 
-                                const chunkData = {
+                                const chunkData: any = {
                                     type: 'text-delta',
                                     id: msgId,
                                     delta: data.token
                                 }
                                 controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(chunkData)}\n\n`))
+                            }
+
+                            if (data.citations) {
+                                // Forward citations as data annotations (#197)
+                                const annotationsData = {
+                                    type: 'data-citations',
+                                    data: data.citations
+                                }
+                                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(annotationsData)}\n\n`))
                             }
                         } catch (e) {
                             console.error('Failed to parse Mastra chunk', dataStr)
@@ -217,12 +241,20 @@ export async function POST(req: NextRequest) {
                                         const startData = { type: 'text-start', id: msgId }
                                         controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(startData)}\n\n`))
                                     }
-                                    const chunkData = {
+                                    const chunkData: any = {
                                         type: 'text-delta',
                                         id: msgId,
                                         delta: data.token
                                     }
                                     controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(chunkData)}\n\n`))
+                                }
+
+                                if (data.citations) {
+                                    const annotationsData = {
+                                        type: 'data-citations',
+                                        data: data.citations
+                                    }
+                                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(annotationsData)}\n\n`))
                                 }
                             } catch (e) {
                                 // ignore

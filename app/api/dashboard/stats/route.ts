@@ -190,7 +190,11 @@ export async function GET() {
             .eq("id", user.id)
             .single()
 
-        if (!userData) return NextResponse.json({ error: "User not found" }, { status: 404 })
+        if (!userData) {
+            console.error(`[Dashboard/Stats] 404: User record not found in public.users for ID: ${user.id}`)
+            return NextResponse.json({ error: "User not found" }, { status: 404 })
+        }
+        console.log(`[Dashboard/Stats] Success: Loaded config for user ${user.id} on tenant ${userData.tenant_id}`)
 
         // Parse config
         let config = userData.dashboard_stats_config
