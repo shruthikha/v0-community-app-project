@@ -20,9 +20,7 @@ export const pool = new Pool({
     connectionString,
     ssl: isLocal
         ? false
-        : process.env.NODE_ENV === "production"
-            ? { ca: process.env.RIO_DATABASE_CA_CERT, rejectUnauthorized: true }
-            : { rejectUnauthorized: false },
+        : { rejectUnauthorized: false },
     max: 10,
 });
 

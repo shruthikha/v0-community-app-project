@@ -138,6 +138,7 @@ export default async function ResidentDashboardPage({ params }: { params: Promis
   const requestsEnabled = tenant?.requests_enabled ?? true
   const defaultFeatures = {
     map: true,
+    rio: { enabled: true, rag: false }
   }
   const mergedFeatures = { ...defaultFeatures, ...(tenant?.features || {}) }
   const mapEnabled = mergedFeatures.map === true

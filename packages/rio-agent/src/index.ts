@@ -1,12 +1,34 @@
 import { Memory } from "@mastra/memory";
-import { Mastra, registerApiRoute, streamSSE } from "@mastra/core";
+import { Mastra } from "@mastra/core";
+import { PostgresStore } from "@mastra/pg";
+import { registerApiRoute } from "@mastra/core/server";
+import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { rioAgent } from "./agents/rio-agent";
 import { ThreadStore } from "./lib/thread-store";
 import { pool } from "./lib/db";
-import { maskId, sha256 } from "./lib/utils";
-import { RequestContext } from "@mastra/core";
-import { createAdminClient } from "./lib/supabase/admin";
+import { RequestContext } from "@mastra/core/request-context";
+import { supabaseAdmin } from "./lib/supabase";
+import { createHash } from 'node:crypto';
+import { ingestionWorkflow } from "./workflows/ingest";
+
+/**
+ * Masks a UUID or similar identifier for safe logging.
+ * Example: "12345678-..." -> "1234...5678"
+ */
+export function maskId(id: string | null | undefined): string {
+    if (!id) return "null";
+    if (id.length < 8) return id;
+    return `${id.slice(0, 4)}...${id.slice(-4)}`;
+}
+
+/**
+ * Generates a SHA-256 hash of a string.
+ */
+export function sha256(data: string): string {
+    if (!data) return '';
+    return createHash('sha256').update(data).digest('hex');
+}
 
 // Load env vars
 function requireEnv(name: string): string {
@@ -17,22 +39,18 @@ function requireEnv(name: string): string {
 
 const rioAgentKey = requireEnv("RIO_AGENT_KEY");
 const RIO_MODEL_ID = process.env.RIO_MODEL_ID || "google/gemini-2.5-flash";
-const supabaseAdmin = createAdminClient();
 
-const mastra = new Mastra({
-    agents: { rioAgent },
-    storage: {
-        memory: new Memory({
-            connectionString: requireEnv("RIO_DATABASE_URL"),
-        }),
-    },
+const storage = new PostgresStore({
+    id: "rio-storage",
+    pool,
 });
 
-const threadStore = new ThreadStore(mastra.getMemory());
+const memory = new Memory({ storage });
+
 
 const ChatBodySchema = z.object({
     messages: z.array(z.any()).min(1),
-    threadId: z.string().nullish(), // Use .nullish() to allow null, undefined, or empty strings
+    threadId: z.string().nullish(),
     resourceId: z.string().nullish(),
 });
 
@@ -43,8 +61,11 @@ function updateDocStatus(id: string, status: string, error?: string) {
         .eq("id", id);
 }
 
-export default mastra.register({
-    name: "RioAI",
+export const app = new Mastra({
+    agents: { rioAgent },
+    workflows: { ingest: ingestionWorkflow },
+    storage,
+    memory: { main: memory },
     server: {
         port: Number(process.env.PORT) || 3001,
         host: "0.0.0.0",
@@ -66,7 +87,7 @@ export default mastra.register({
 
                         const authHeader = c.req.header("x-agent-key");
                         if (authHeader !== rioAgentKey) {
-                            console.warn(`[RIO-AGENT] 401 Unauthorized on /threads/active: mask(${authHeader}) !== mask(${rioAgentKey})`);
+                            console.warn(`[RIO-AGENT] 401 Unauthorized on /threads/active`);
                             return c.json({ error: "Unauthorized" }, 401);
                         }
 
@@ -117,8 +138,6 @@ export default mastra.register({
                             return c.json({ error: "threadId or resourceId is required" }, 400);
                         }
 
-
-
                         // Metadata Sync & Thread Ownership Verification
                         let thread;
                         try {
@@ -146,7 +165,6 @@ export default mastra.register({
                         const isRagEnabled = ragEnabledHeader === "true";
 
                         // 3-Tier Prompt Composition
-
                         let systemPrompt = (rioAgent as any).instructions;
                         try {
                             const { data: config, error: configError } = await supabaseAdmin
@@ -175,7 +193,6 @@ ${config.emergency_contacts || "Contact local services."}
 
 ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_message}"` : ""}
 `;
-
                             }
                         } catch (e: any) {
                             console.warn(`[RIO-AGENT] Using fallback system prompt for ${maskId(tenantId)}: ${e.message}`);
@@ -185,10 +202,6 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
                         requestContext.set("tenantId", tenantId as string);
                         requestContext.set("ragEnabled", isRagEnabled);
                         requestContext.set("userId", userId as string);
-
-
-
-
 
                         const result = await rioAgent.stream(messages, {
                             system: systemPrompt,
@@ -262,7 +275,7 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
                         const { documentId, tenantId } = body;
                         if (!documentId || !tenantId) return c.json({ error: "Missing documentId or tenantId" }, 400);
 
-                        const workflow = mastra.getWorkflow("ingest");
+                        const workflow = app.getWorkflow("ingest");
                         if (workflow) {
                             workflow.createRun().then(run => run.start({ inputData: { documentId } }));
                         }
@@ -276,3 +289,7 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
         ],
     },
 });
+
+const threadStore = new ThreadStore(app.getMemory("main"));
+export const mastra = app;
+export default app;
