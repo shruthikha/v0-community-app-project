@@ -13,7 +13,16 @@ interface CreateFabProps {
 }
 
 export function CreateFab({ tenantSlug, tenantId, categories, neighborhoods, rioEnabled = false }: CreateFabProps) {
+    const [mounted, setMounted] = React.useState(false)
     const [open, setOpen] = useState(false)
+
+    React.useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    if (!mounted) {
+        return null
+    }
 
     return (
         <div className="hidden md:block fixed top-[64px] right-8 z-40">

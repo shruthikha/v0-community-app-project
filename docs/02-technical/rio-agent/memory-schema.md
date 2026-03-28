@@ -19,11 +19,18 @@ Stores the actual message history linked to threads.
 - **`content`**: The message text or tool calls.
 - **`created_at`**: Timestamp for ordering.
 
+## Mastra Memory Layers (Sprint 12)
+Río utilizes Mastra's native memory orchestration, scoped via `resourceId = userId`:
+
+1. **In-Session Context**: Standard message history (limited to last 20 messages per request).
+2. **Working Memory**: A collection of learned facts about the resident (e.g., "likes tea", "preferred language is Spanish"). These are extracted by the LLM and persist across threads.
+3. **Semantic Recall**: Vectorized message history allowing the agent to perform similarity searches over past conversations to surface long-term context.
+
 ## Isolation Logic
-Tenant isolation is enforced via **PostgreSQL Row Level Security (RLS)**:
-1. The BFF extracts the `tenantId` and `userId` from the authenticated JWT.
-2. These are passed as headers (`x-tenant-id`, `x-user-id`) to the Rio Agent.
-3. The Agent sets these in the Mastra session context.
+Tenant and User isolation is enforced via a combination of **Resource Scoping** and **PostgreSQL Row Level Security (RLS)**:
+1. The BFF ensures `resourceId` passed to Mastra is always the authenticated `userId`.
+2. Mastra scopes all `workingMemory` and `semanticRecall` operations to this `resourceId`.
+3. Database level isolation is enforced via policies on `rio_threads` and `rio_messages` matching the `tenant_id` and `user_id`.
 4. The database enforces policies: `WHERE tenant_id = (auth.jwt() ->> 'tenant_id')::uuid`.
 
 ## Row Level Security (RLS)

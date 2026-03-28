@@ -1,0 +1,113 @@
+◐ Preparing development environment...
+✓ Initial bundle complete
+◇ Starting Mastra dev server...
+◐ Bundling...
+RioAgent initialized
+[LLAMA] Missing LLAMA_CLOUD_API_KEY. Document parsing will fail.
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+node:events:485
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use 0.0.0.0:3005
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at node:net:2205:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1975:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3005
+}
+
+Node.js v23.11.0
+✓ Bundle complete
+◐ [Mastra Dev] - Bundling finished, checking if restart is allowed...
+◐ Bundling...
+◐ [Mastra Dev] - ✅ Restarting server...
+↻ Restarting server...
+◇ Starting Mastra dev server...
+RioAgent initialized
+[LLAMA] Missing LLAMA_CLOUD_API_KEY. Document parsing will fail.
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+node:events:485
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at serve (file:///Users/mj/Developer/v0-community-app-project/packages/rio-agent/.mastra/output/index.mjs:65474:10)
+    at createNodeServer (file:///Users/mj/Developer/v0-community-app-project/packages/rio-agent/.mastra/output/index.mjs:69088:18)
+    at async file:///Users/mj/Developer/v0-community-app-project/packages/rio-agent/.mastra/output/index.mjs:69124:1
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1975:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+
+Node.js v23.11.0
+✓ Bundle complete
+◐ [Mastra Dev] - Bundling finished, checking if restart is allowed...
+◐ [Mastra Dev] - ✅ Restarting server...
+↻ Restarting server...
+◇ Starting Mastra dev server...
+RioAgent initialized
+[LLAMA] Missing LLAMA_CLOUD_API_KEY. Document parsing will fail.
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+Invalid target: draft-07
+node:events:485
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use 0.0.0.0:3001
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenI
+✓ Dev server stopped
+12)
+    at node:net:2205:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1975:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3001
+}
+
+Node.js v23.11.0
+
+✓ Dev server stopped
+
+✓ Dev server stopped

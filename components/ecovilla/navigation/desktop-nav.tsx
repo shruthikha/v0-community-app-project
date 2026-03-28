@@ -61,9 +61,18 @@ export function DesktopNav({
     isCollapsed,
     onToggleCollapse,
 }: DesktopNavProps) {
+    const [mounted, setMounted] = React.useState(false)
     const pathname = usePathname()
     const supabase = createClient()
     const { t } = useTranslation()
+
+    React.useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    if (!mounted) {
+        return <div className="hidden md:flex flex-col fixed left-2 top-2 bottom-2 bg-background border border-earth-pebble/50 rounded-2xl w-16 invisible" />
+    }
 
     const handleLogout = async () => {
         await supabase.auth.signOut()

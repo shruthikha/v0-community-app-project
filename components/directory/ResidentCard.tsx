@@ -1,6 +1,9 @@
 "use client"
 
+import * as React from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
+import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +24,12 @@ interface ResidentCardProps {
 
 export function ResidentCard({ resident, tenantSlug, currentUserFamilyId, neighborLists = [], tenantId, isTenantAdmin = false }: ResidentCardProps) {
     const router = useRouter()
+    const [imageError, setImageError] = useState(false)
+
+    // Reset error state when URL changes (fix for "sticky" error state)
+    React.useEffect(() => {
+        setImageError(false)
+    }, [resident.profile_picture_url])
 
     const privacySettings = Array.isArray(resident.user_privacy_settings)
         ? resident.user_privacy_settings[0]
@@ -71,13 +80,21 @@ export function ResidentCard({ resident, tenantSlug, currentUserFamilyId, neighb
                 <div className="flex gap-4 items-center">
                     {/* (Rest of content) */}
                     <Avatar className="h-16 w-16 flex-shrink-0">
-                        <AvatarImage
-                            src={filteredData.show_profile_picture ? resident.profile_picture_url : undefined}
-                            alt={`${resident.first_name} ${resident.last_name}`}
-                        />
-                        <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-                            {initials}
-                        </AvatarFallback>
+                        {filteredData.show_profile_picture && resident.profile_picture_url && !imageError ? (
+                            <Image
+                                src={resident.profile_picture_url}
+                                alt={`${resident.first_name} ${resident.last_name}`}
+                                fill
+                                sizes="64px"
+                                className="object-cover"
+                                unoptimized={true}
+                                onError={() => setImageError(true)}
+                            />
+                        ) : (
+                            <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                                {initials}
+                            </AvatarFallback>
+                        )}
                     </Avatar>
 
                     <div className="flex-1 min-w-0 space-y-2">

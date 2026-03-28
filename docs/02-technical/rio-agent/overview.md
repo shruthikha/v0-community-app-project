@@ -29,42 +29,44 @@ The assistant uses structure-aware retrieval to find relevant community informat
 Río provides a dedicated chat interface for residents:
 - **Components**: `RioChatSheet` (responsive Sheet/Drawer) and `RioWelcomeCard` (dashboard entry).
 - **State Management**: `use-rio-chat` Zustand store for global sheet visibility.
-- **Interactive Citations**: RAG sources are rendered as interactive Popovers. Support for combined markers like `[1, 4]` which are split into individual actionable links.
-- **Mobile Friendly**: Hover tooltips are replaced by tap-to-open Popovers for source excerpts on mobile devices.
+- **Hydration**: (Sprint 12) Support for **Message Hydration** upon opening the sheet. The BFF proxies the last 10 messages from Mastra's `listMessages` to prevent an empty state on session resume.
+- **Thread Management**: (Sprint 12) **Server-Authoritative Threads**. Thread IDs are generated via `POST /api/v1/ai/threads/new` and associated with `userId` and `tenantId` metadata on creation.
+- **Interactive Citations**: RAG sources are rendered as interactive Popovers.
 
 ### 4. Agent Instruction Logic
 Río uses a 3-tier instruction system injected via the system prompt:
 1. **Global Context**: Base instructions (Persona, Safety, Tool usage).
 2. **Property Context**: Community-wide configurations (Emergency contacts, policies).
-3. **Resident Context**: Personalized info (Name, Lot number, Interests).
+3. **Resident Context**: Personalized info (Name, Lot number, Interests) fetched via Supabase in the BFF and injected into the Tier 1 prompt.
 
 ### 5. Multi-Tenant Isolation & Security
 - **BFF Gatekeeping**: Authenticated Admin-only triggers for ingestion.
 - **Shared Secret**: `x-agent-key` (`RIO_AGENT_KEY`) verifies BFF-to-Agent communication.
-- **RLS Enforcement**: "Backend-First" security model. Policies for both Storage and Database tables use `SECURITY DEFINER` functions (`public.get_user_role()`, `public.get_user_tenant_id()`) to verify identity against the `public.users` table, preventing reliance on potentially spoofable JWT claims.
-- **Vector Filter**: All similarity searches pre-filter candidates by `tenant_id` metadata.
-- **Resilient SSL**: The agent uses a centralized database pool that defaults to resilient SSL validation. It prevents boot crashes in managed environments (like Railway) by defaulting `rejectUnauthorized` to `false` unless a `RIO_DATABASE_CA` is provided.
+- **Memory Scoping**: (Sprint 12) `resourceId` is strictly set to `userId`. This scopes Mastra's **Working Memory** and **Semantic Recall** to the individual resident, ensuring cross-session continuity without data leakage between users.
+- **RLS Enforcement**: "Backend-First" security model.
 
 ## API Reference
 
-### Health Check
+### Health Check (Rio Agent)
 `GET /health`
-Returns service status and Mastra initialization state.
 
-### Chat
+### New Thread (BFF)
+`POST /api/v1/ai/threads/new`
+Creates a server-authoritative thread and returns the `threadId`.
+
+### Chat (BFF)
 `POST /api/chat`
 Main interaction endpoint.
 **Payload**:
 ```json
 {
   "messages": [...],
-  "threadId": "uuid",
-  "resourceId": "optional-context"
+  "threadId": "uuid"
 }
 ```
 **Headers**:
 - `x-tenant-id`: Required for multi-tenant isolation.
-- `x-user-id`: Required for session tracking.
+- `x-user-id`: Required for session tracking and user-scoped memory (resourceId).
 
 ### Configuration Check
 `GET /config-check`

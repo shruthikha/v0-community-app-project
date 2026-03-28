@@ -41,8 +41,9 @@ export class ThreadStore {
 
     /**
      * Retrieves a thread by ID, enforcing that the requested tenantId matches the stored metadata.
+     * Optionally verifies ownership via userId.
      */
-    async getThreadById(tenantId: string, threadId: string) {
+    async getThreadById(tenantId: string, threadId: string, userId?: string) {
         if (!tenantId) throw new Error("tenantId is required to fetch a thread.");
 
         const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
@@ -50,10 +51,17 @@ export class ThreadStore {
 
         if (!thread) return null;
 
-        // Backend-First Auth: Defense in Depth (in case the threadId lacked the namespace natively)
+        // Backend-First Auth: Defense in Depth
         const storedTenantId = thread?.metadata?.tenantId;
         if (storedTenantId && storedTenantId !== tenantId) {
             throw new Error(`403 Forbidden: Thread isolated to tenant ${storedTenantId}. Request from tenant ${tenantId} denied.`);
+        }
+
+        // Ownership Verification (Sprint 12 Hardening)
+        const storedUserId = thread?.metadata?.userId;
+        if (userId && storedUserId && storedUserId !== userId) {
+            console.error(`[ThreadStore] Ownership mismatch: Thread ${threadId} requested by ${userId} but owned by ${storedUserId}`);
+            return null;
         }
 
         return thread;
@@ -83,23 +91,34 @@ export class ThreadStore {
     /**
       * Gets messages for a thread, enforcing tenant isolation.
       */
-    async getMessages(tenantId: string, threadId: string) {
-        // Enforces access check
-        const thread = await this.getThreadById(tenantId, threadId);
-        if (!thread) throw new Error(`Thread not found or forbidden: ${threadId}`);
+    async getMessages(tenantId: string, threadId: string, userId?: string) {
+        // First verify ownership
+        const thread = await this.getThreadById(tenantId, threadId, userId);
+        if (!thread) return [];
 
         const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
         const result = await this.memory.recall({ threadId: namespacedThreadId });
-        return result.messages;
+
+        // Ensure chronological order
+        return [...result.messages].sort((a, b) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateA - dateB;
+        });
     }
 
-    async saveMessages(tenantId: string, threadId: string, messages: any[]) {
-        // Enforces access check
-        const thread = await this.getThreadById(tenantId, threadId);
-        if (!thread) throw new Error(`Thread not found or forbidden: ${threadId}`);
+    async saveMessages(tenantId: string, threadId: string, messages: any[], userId?: string) {
+        // Verify ownership before saving
+        const thread = await this.getThreadById(tenantId, threadId, userId);
+        if (!thread) throw new Error("Forbidden: Thread ownership mismatch");
 
         const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
-        const messagesWithThreadId = messages.map(m => ({ ...m, threadId: namespacedThreadId }));
-        return this.memory.saveMessages({ messages: messagesWithThreadId });
+        const messagesWithMetadata = messages.map(m => ({
+            id: m.id || `msg-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+            ...m,
+            threadId: namespacedThreadId,
+            resourceId: thread.resourceId
+        }));
+        return this.memory.saveMessages({ messages: messagesWithMetadata });
     }
 }

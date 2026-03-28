@@ -49,7 +49,7 @@ const memory = new Memory({ storage });
 
 
 const ChatBodySchema = z.object({
-    messages: z.array(z.any()).min(1),
+    messages: z.array(z.any()).nullish(), // Optional for hydration/creation calls
     threadId: z.string().nullish(),
     resourceId: z.string().nullish(),
 });
@@ -93,8 +93,8 @@ export const app = new Mastra({
 
                         const result = await pool.query(
                             `SELECT id FROM mastra_threads 
-                             WHERE metadata->>'user_id' = $1 
-                             AND metadata->>'tenant_id' = $2
+                             WHERE metadata->>'userId' = $1 
+                             AND metadata->>'tenantId' = $2
                              ORDER BY updated_at DESC LIMIT 1`,
                             [userId, tenantId]
                         );
@@ -103,6 +103,62 @@ export const app = new Mastra({
                     } catch (error) {
                         console.error("[RIO-AGENT] Active thread lookup error:", error);
                         return c.json({ error: "Internal Server Error" }, 500);
+                    }
+                },
+            }),
+            registerApiRoute("/threads/new", {
+                method: "POST",
+                requiresAuth: true,
+                handler: async (c) => {
+                    try {
+                        const authHeader = c.req.header("x-agent-key");
+                        if (authHeader !== rioAgentKey) return c.json({ error: "Unauthorized" }, 401);
+
+                        const tenantId = c.req.header("x-tenant-id");
+                        const userId = c.req.header("x-user-id");
+
+                        if (!tenantId || !userId) return c.json({ error: "Missing tenantId or userId in headers" }, 400);
+
+                        const threadId = `thread-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+                        await threadStore.createThread({
+                            threadId,
+                            resourceId: userId, // M1: userId is the resourceId
+                            tenantId,
+                            userId,
+                        });
+
+                        console.log(`[RIO-AGENT] Server-driven thread created: ${maskId(threadId)} for user ${maskId(userId)}`);
+                        return c.json({ threadId });
+                    } catch (error: any) {
+                        console.error("[RIO-AGENT] Thread creation error:", error);
+                        return c.json({ error: error.message }, 500);
+                    }
+                },
+            }),
+            registerApiRoute("/threads/messages", {
+                method: "GET",
+                requiresAuth: true,
+                handler: async (c) => {
+                    try {
+                        const authHeader = c.req.header("x-agent-key");
+                        if (authHeader !== rioAgentKey) return c.json({ error: "Unauthorized" }, 401);
+
+                        const tenantId = c.req.header("x-tenant-id");
+                        const userId = c.req.header("x-user-id");
+                        const threadId = c.req.query("threadId");
+
+                        if (!tenantId || !threadId || !userId) return c.json({ error: "Missing tenantId, threadId, or userId" }, 400);
+
+                        const messages = await threadStore.getMessages(tenantId, threadId, userId);
+
+                        // Limit to last 10 as per user request
+                        const limitedMessages = messages.slice(-10);
+
+                        return c.json({ messages: limitedMessages });
+                    } catch (error: any) {
+                        console.error("[RIO-AGENT] Message hydration error:", error);
+                        return c.json({ error: error.message }, 500);
                     }
                 },
             }),
@@ -138,29 +194,21 @@ export const app = new Mastra({
                             return c.json({ error: "threadId or resourceId is required" }, 400);
                         }
 
-                        // Metadata Sync & Thread Ownership Verification
+                        // Metadata Sync & Thread Ownership Verification (Unified in ThreadStore)
                         let thread;
                         try {
-                            thread = await threadStore.getThreadById(tenantId as string, effectiveThreadId);
-                            if (thread) {
-                                const existingTenantId = thread.metadata?.tenantId;
-                                const existingUserId = thread.metadata?.userId;
-                                if (existingTenantId && existingTenantId !== tenantId) {
-                                    console.error(`[RIO-AGENT] 403 Forbidden: Tenant mismatch. Stored: ${maskId(existingTenantId as string)}, Incoming: ${maskId(tenantId as string)}`);
-                                    return c.json({ error: "Access denied: thread tenant mismatch" }, 403);
-                                }
-                                // Verify ownership if thread exists
-                                if (existingUserId && existingUserId !== userId) {
-                                    console.error(`RioAgent: Thread ${effectiveThreadId} ownership mismatch. Thread user: ${existingUserId}, Request user: ${userId}`);
-                                    return c.json({ error: "Forbidden: You do not own this thread" }, 403);
-                                }
-                            } else {
-                                console.log(`[RIO-AGENT] Thread ${maskId(effectiveThreadId)} not found, creating new one for tenant ${maskId(tenantId)}`);
-                                await threadStore.createThread({ threadId: effectiveThreadId, resourceId: resourceId || "rio-chat", tenantId: tenantId as string, userId: userId as string });
+                            thread = await threadStore.getThreadById(tenantId as string, effectiveThreadId, userId as string);
+
+                            if (!thread) {
+                                // If threadId was provided but not found/owned, or if resourceId was provided but no thread exists, it's a security violation
+                                // We no longer auto-create threads here to avoid "one-thread-per-user" legacy behavior.
+                                // Users should call /threads/new explicitly.
+                                console.error(`[RIO-AGENT] 403 Forbidden: Ownership mismatch or thread not found for ${maskId(effectiveThreadId)}`);
+                                return c.json({ error: "Forbidden: You do not own this thread or it does not exist. Please create a thread first via /threads/new." }, 403);
                             }
                         } catch (e: any) {
-                            console.error("[RIO-AGENT] Thread verification failed (Database error?):", e);
-                            return c.json({ error: `Unable to verify thread ownership: ${e.message}` }, 500);
+                            console.error("[RIO-AGENT] Thread verification failed:", e);
+                            return c.json({ error: e.message }, e.message.includes("Forbidden") ? 403 : 500);
                         }
 
                         const ragEnabledHeader = c.req.header("x-rag-enabled");
@@ -205,37 +253,49 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
                         requestContext.set("ragEnabled", isRagEnabled);
                         requestContext.set("userId", userId as string);
 
-                        const result = await rioAgent.stream(messages, {
+                        // 4. Invoke Agent Stream with correct Mastra v1.x options
+                        const coreMessages = (messages || []).map((m: any) => ({
+                            role: m.role,
+                            content: m.content || "", // Mastra prefers a string if parts is missing
+                            ...(m.parts ? { parts: m.parts } : {}),
+                        }));
+
+                        const result = await rioAgent.stream(coreMessages, {
                             system: systemPrompt,
                             requestContext,
                             memory: {
-                                threadId: threadStore.generateTenantThreadId(tenantId as string, effectiveThreadId),
-                                resourceId: "rio-chat",
-                            } as any,
+                                thread: threadStore.generateTenantThreadId(tenantId as string, effectiveThreadId),
+                                resource: userId as string, // M1: Forced userId for persistent memory lookup
+                            },
                             abortSignal: c.req.raw.signal,
                         });
 
                         return streamSSE(c, async (stream) => {
                             let completed = false;
                             const fullStream = (result as any).fullStream || (result as any).stream;
+
                             if (!fullStream) {
-                                console.error("[RIO-AGENT] FATAL: result.fullStream is missing!", Object.keys(result));
+                                console.error("[RIO-AGENT] FATAL: result.fullStream is missing! Output keys:", Object.keys(result));
                                 await stream.writeSSE({ data: JSON.stringify({ error: "Stream initialization failed" }) });
                                 return;
                             }
+
+                            console.log("[RIO-AGENT] Stream started");
                             const reader = fullStream.getReader();
                             try {
                                 while (true) {
                                     const { done, value } = await reader.read();
                                     if (done) {
+                                        console.log("[RIO-AGENT] Stream done");
                                         completed = true;
                                         break;
                                     }
                                     if (value) {
+                                        // console.log(`[RIO-AGENT] Chunk: ${value.type}`);
                                         if (value.type === "text-delta") {
                                             await stream.writeSSE({ data: JSON.stringify({ token: value.payload.text }) });
                                         } else if (value.type === "tool-call") {
-                                            // Handle tool call
+                                            console.log(`[RIO-AGENT] Tool Call: ${value.payload.toolName}`);
                                         } else if (value.type === "tool-result" && value.payload.toolName === "search_documents") {
                                             const toolResult = value.payload.result as any;
                                             if (toolResult?.results) {
@@ -254,10 +314,12 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
                                 }
                             } catch (streamErr: any) {
                                 console.error("[RIO-AGENT] SSE Stream chunk error:", streamErr);
+                                await stream.writeSSE({ data: JSON.stringify({ error: streamErr.message }) });
                             } finally {
                                 if (completed) {
                                     await stream.writeSSE({ data: "[DONE]" });
                                 }
+                                reader.releaseLock();
                             }
                         });
                     } catch (error: any) {
@@ -297,6 +359,7 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
     },
 });
 
-const threadStore = new ThreadStore(app.getMemory("main"));
+export const threadStore = new ThreadStore(memory);
+export { pool };
 export const mastra = app;
 export default app;

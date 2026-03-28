@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
         const messages = body.messages || []
         const threadId = body.threadId
-        const resourceId = body.resourceId || requestedTenantId
+        const resourceId = user.id // Force userId for memory isolation (Sprint 12 M1)
         const idempotencyKey = body.idempotencyKey || `chat-${user.id}-${Date.now()}`
 
         // 2. Forward to Railway with Tiered Timeout and Retry

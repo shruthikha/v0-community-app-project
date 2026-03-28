@@ -114,49 +114,99 @@ export function RioChatSheet({
     const { isOpen, closeChat, initialQuery, openChat } = useRioChat()
 
     const [threadId, setThreadId] = React.useState<string>("");
+    const [initialMessages, setInitialMessages] = React.useState<UIMessage[]>([]);
     const [isRefreshingThread, setIsRefreshingThread] = React.useState(false);
 
-    // Sync Thread ID across devices
+    // Sync Thread ID and Hydrate Messages (Sprint 12 M1-M3)
     React.useEffect(() => {
         if (!isOpen || !userId || !tenantId) return;
 
-        const syncThread = async () => {
+        const syncAndHydrate = async () => {
             const key = `rio-chat-thread-${tenantSlug}-${userId}`;
-            const local = localStorage.getItem(key);
 
-            if (local) {
-                setThreadId(local);
-                return;
+            // 1. Legacy Purge: Force server-authoritative state for Sprint 12 transition
+            const hasPurged = sessionStorage.getItem(`${key}-purged`);
+            if (!hasPurged) {
+                console.log("[RIO-UI] Purging legacy localStorage thread ID for Sprint 12 transition");
+                localStorage.removeItem(key);
+                sessionStorage.setItem(`${key}-purged`, 'true');
             }
+
+            const local = localStorage.getItem(key);
+            let currentThreadId = local;
 
             setIsRefreshingThread(true);
             try {
-                // Fetch last active thread from backend
-                const res = await fetch(`/api/v1/ai/threads/active?userId=${userId}&tenantId=${tenantId}`);
-                const data = await res.json();
+                // 2. Fetch/Create ThreadId (Server-Authoritative M3)
+                if (!currentThreadId) {
+                    // Try fetch active
+                    const activeRes = await fetch(`/api/v1/ai/threads/active?userId=${encodeURIComponent(userId)}&tenantId=${encodeURIComponent(tenantId)}`);
+                    if (activeRes.ok) {
+                        const activeData = await activeRes.json();
+                        if (activeData.threadId) {
+                            currentThreadId = activeData.threadId;
+                        }
+                    } else {
+                        console.warn("[RIO-UI] Could not fetch active thread:", await activeRes.text());
+                    }
 
-                if (data.threadId) {
-                    setThreadId(data.threadId);
-                    localStorage.setItem(key, data.threadId);
+                    if (!currentThreadId) {
+                        // Create new via server
+                        const newRes = await fetch(`/api/v1/ai/threads/new`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ tenantId })
+                        });
+                        if (newRes.ok) {
+                            const newData = await newRes.json();
+                            currentThreadId = newData.threadId;
+                        } else {
+                            console.error("[RIO-UI] Failed to create new thread:", await newRes.text());
+                        }
+                    }
+
+                    if (currentThreadId) {
+                        setThreadId(currentThreadId);
+                        localStorage.setItem(key, currentThreadId);
+                    }
                 } else {
-                    // Generate new if none exists
-                    const newId = `thread-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-                    setThreadId(newId);
-                    localStorage.setItem(key, newId);
+                    setThreadId(currentThreadId);
+                }
+
+                // 3. Hydrate History (Server-Authoritative M2)
+                if (currentThreadId) {
+                    const msgRes = await fetch(`/api/v1/ai/threads/messages?threadId=${encodeURIComponent(currentThreadId)}&tenantId=${encodeURIComponent(tenantId)}`);
+                    if (msgRes.ok) {
+                        const msgData = await msgRes.json();
+
+                        if (msgData.messages && Array.isArray(msgData.messages)) {
+                            const transformed: UIMessage[] = msgData.messages.map((m: any, idx: number) => ({
+                                id: m.id || `hist-${idx}`,
+                                role: m.role as "user" | "assistant",
+                                content: m.content,
+                                createdAt: m.createdAt ? new Date(m.createdAt) : undefined
+                            }));
+                            // Merge with existing messages instead of overwriting (CodeRabbit #3005102650)
+                            setMessages(prev => {
+                                const seenIds = new Set(transformed.map(msg => msg.id));
+                                return [...transformed, ...prev.filter(msg => !seenIds.has(msg.id))];
+                            });
+                        }
+                    }
                 }
             } catch (err) {
-                console.error("RioChatSheet: Failed to sync thread", err);
+                console.error("[RIO-UI] Failed to sync/hydrate:", err);
             } finally {
                 setIsRefreshingThread(false);
             }
         };
 
-        syncThread();
+        syncAndHydrate();
     }, [isOpen, userId, tenantId, tenantSlug]);
 
     const [input, setInput] = React.useState("")
 
-    const { messages = [], sendMessage, status, error } = useChat({
+    const { messages = [], sendMessage, status, error, setMessages } = useChat({
         id: "rio-chat",
         transport: new DefaultChatTransport({
             api: "/api/v1/ai/chat",
@@ -166,6 +216,9 @@ export function RioChatSheet({
             }
         })
     })
+
+    // M2: Final combined message set
+    const allMessages = messages;
 
     const isLoading = status === 'streaming' || status === 'submitted'
 
@@ -186,7 +239,7 @@ export function RioChatSheet({
     const messagesEndRef = React.useRef<HTMLDivElement>(null)
     React.useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-    }, [messages])
+    }, [allMessages])
 
     // Custom onSubmit to handle empty spaces
     const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -200,7 +253,7 @@ export function RioChatSheet({
     const renderMessageContent = () => (
         <div className="flex flex-col h-full bg-white">
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {messages.length === 0 && (
+                {allMessages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 space-y-4">
                         <div className="w-24 h-24 opacity-60 grayscale-[0.2]">
                             {/* @ts-ignore */}
@@ -210,7 +263,7 @@ export function RioChatSheet({
                     </div>
                 )}
 
-                {messages.map((m: any) => {
+                {allMessages.map((m: any) => {
                     // Extract citations early
                     const citations = m.parts?.find((p: any) => p.type === 'data-citations')?.data || m.annotations || [];
 
