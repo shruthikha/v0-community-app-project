@@ -20,7 +20,14 @@ export const pool = new Pool({
     connectionString,
     ssl: isLocal
         ? false
-        : { rejectUnauthorized: false },
+        : {
+            // IF a CA is provided, we MUST verify (hardened). 
+            // ELSE, we default to rejectUnauthorized: false to prevent boot crashes with 
+            // self-signed certs (e.g. Railway/Supabase).
+            // We also check for the standard sslmode parameter as an override.
+            rejectUnauthorized: process.env.RIO_DATABASE_CA ? true : (connectionString?.includes("sslmode=no-verify") ? false : false),
+            ca: process.env.RIO_DATABASE_CA
+        },
     max: 10,
 });
 

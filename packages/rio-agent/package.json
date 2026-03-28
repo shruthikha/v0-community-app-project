@@ -5,7 +5,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "mastra dev -d src",
+        "dev": "PORT=3001 mastra dev -d src",
         "build": "mastra build -s -d src",
         "start": "MASTRA_STUDIO_PATH=.mastra/output/studio node .mastra/output/index.mjs",
         "typecheck": "tsc --noEmit",

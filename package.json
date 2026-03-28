@@ -14,7 +14,7 @@
     "test": "vitest",
     "docs:dev": "cd docs-site && npm start -- --port 3001",
     "docs:build": "cd docs-site && npm run build",
-    "dev:agent": "cd packages/rio-agent && npm run dev"
+    "dev:agent": "cd packages/rio-agent && PORT=3001 npm run dev"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.118",

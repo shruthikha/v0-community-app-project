@@ -146,11 +146,13 @@ export const app = new Mastra({
                                 const existingTenantId = thread.metadata?.tenantId;
                                 const existingUserId = thread.metadata?.userId;
                                 if (existingTenantId && existingTenantId !== tenantId) {
-                                    console.error(`[RIO-AGENT] 403 Forbidden: Tenant mismatch. Stored: ${maskId(existingTenantId)}, Incoming: ${maskId(tenantId)}`);
+                                    console.error(`[RIO-AGENT] 403 Forbidden: Tenant mismatch. Stored: ${maskId(existingTenantId as string)}, Incoming: ${maskId(tenantId as string)}`);
                                     return c.json({ error: "Access denied: thread tenant mismatch" }, 403);
                                 }
+                                // Verify ownership if thread exists
                                 if (existingUserId && existingUserId !== userId) {
-                                    console.warn(`[RIO-AGENT] User ID changed/mismatch on thread. Stored: ${maskId(existingUserId)}, Incoming: ${maskId(userId)}`);
+                                    console.error(`RioAgent: Thread ${effectiveThreadId} ownership mismatch. Thread user: ${existingUserId}, Request user: ${userId}`);
+                                    return c.json({ error: "Forbidden: You do not own this thread" }, 403);
                                 }
                             } else {
                                 console.log(`[RIO-AGENT] Thread ${maskId(effectiveThreadId)} not found, creating new one for tenant ${maskId(tenantId)}`);
@@ -241,6 +243,7 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
                                                     data: JSON.stringify({
                                                         citations: toolResult.results.map((r: any) => ({
                                                             documentName: r.documentName,
+                                                            documentId: r.documentId,
                                                             excerpt: r.content?.slice(0, 200) + "..."
                                                         }))
                                                     })
@@ -277,7 +280,11 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
 
                         const workflow = app.getWorkflow("ingest");
                         if (workflow) {
-                            workflow.createRun().then(run => run.start({ inputData: { documentId } }));
+                            const run = await workflow.createRun();
+                            // Await the run to ensure it starts correctly and we can catch early failures
+                            await run.start({
+                                inputData: { documentId },
+                            });
                         }
 
                         return c.json({ status: "queued" }, 202);

@@ -4,12 +4,13 @@ import { cn } from "@/lib/utils"
 interface RioImageProps {
     pose?: "general" | "encouraging" | "waiting" | "icon"
     className?: string
-    size?: "sm" | "md" | "lg" | "xl"
+    size?: "xs" | "sm" | "md" | "lg" | "xl"
 }
 
 export function RioImage({ pose = "general", className, size = "md" }: RioImageProps) {
     // Map sizes to dimensions
     const dimensions = {
+        xs: { width: 32, height: 32 },
         sm: { width: 48, height: 48 },
         md: { width: 120, height: 120 },
         lg: { width: 200, height: 200 },

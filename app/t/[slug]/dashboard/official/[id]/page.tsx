@@ -29,6 +29,35 @@ export default async function DocumentDetailPage({
 
     if (!document) notFound()
 
+    // --- Supabase Storage Signed URL Hardening ---
+    // Generate signed URL for private bucket access if it's a file
+    let fileUrl = document.file_url;
+    if (document.document_type !== 'page' && fileUrl) {
+        try {
+            // Robust path extraction that handles various Supabase URL formats
+            // Format: .../storage/v1/object/public/bucketName/path/to/file
+            const pathMatch = fileUrl.match(/\/object\/(?:public\/)?documents\/(.+)$/);
+            const storagePath = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+
+            if (storagePath) {
+                const { data: signedData, error } = await supabase.storage
+                    .from('documents')
+                    .createSignedUrl(storagePath, 3600); // 1-hour expiry for stability
+
+                if (error) {
+                    console.error("[Document] Failed to generate signed URL:", error);
+                } else if (signedData?.signedUrl) {
+                    fileUrl = signedData.signedUrl;
+                }
+            } else {
+                console.warn("[Document] Could not resolve storage path for signing. Using raw URL.");
+            }
+        } catch (err) {
+            console.error("[Document] Error during URL signing process:", err);
+        }
+    }
+    // --- End Signed URL logic ---
+
     // Mark as read immediately on visit
     try {
         await supabase.from("document_reads").insert({
@@ -99,19 +128,18 @@ export default async function DocumentDetailPage({
                     </div>
                 ) : (
                     <div className="space-y-6">
-
-                        {document.file_url ? (
+                        {fileUrl ? (
                             <div className="space-y-4">
                                 <div className="w-full h-[800px] border rounded-xl overflow-hidden bg-muted shadow-sm">
                                     <iframe
-                                        src={document.file_url}
+                                        src={fileUrl}
                                         className="w-full h-full"
                                         title={document.title}
                                     />
                                 </div>
                                 <div className="flex justify-center">
                                     <Button asChild size="lg" className="gap-2">
-                                        <a href={document.file_url} target="_blank" rel="noopener noreferrer">
+                                        <a href={fileUrl} target="_blank" rel="noopener noreferrer">
                                             <FileText className="h-5 w-5" />
                                             Download PDF
                                         </a>

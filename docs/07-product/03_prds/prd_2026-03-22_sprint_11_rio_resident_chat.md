@@ -45,12 +45,13 @@ The visual designs and mocked-up layouts for the new interfaces are located at:
 | 5 | [#197] | Source citation UI | P1 | S | 4-8h |
 | 6 | [#178] | Redesign RioWelcomeCard.tsx (Inline Prompt) | P1 | S | 4-8h |
 | 7 | [#179] | Add "Chat with Río" to CreatePopover.tsx (+) button | P1 | XS | 2-4h |
+| 8 | [#247] | Rio Assistant Citation Improvements & UI Branding | P1 | M | 1-2d |
 | **ST1** | — | **Fix: Stale Error Badge** (Remediation) | **P0** | **XS** | 2-4h |
 | **ST2** | — | **BFF: Timeout Guards** (Stability) | **P1** | **XS** | 2-4h |
 | **ST3** | — | **RLS: JWT Pattern Fix** (Hardening) | **P0** | **M** | 1-2d |
 
 **Reasoning:**
-These issues represent the end-to-end flow for the resident chat experience. The stability/remediation tasks (ST1-ST3, #199) address critical security and reliability gaps identified during the QA audit of PR #243.
+These issues represent the end-to-end flow for the resident chat experience. Issue #247 was added as a late-sprint enhancement to align with the Nido design system and improve citation clarity. The stability/remediation tasks (ST1-ST3, #199) address critical security and reliability gaps identified during the QA audit of PR #243.
 
 ### 🛡️ Remediation Summary (Phase 1)
 All 14 findings from the CodeRabbit audit of PR #243 have been remediated in Branch 1:
@@ -63,6 +64,11 @@ All 14 findings from the CodeRabbit audit of PR #243 have been remediated in Bra
 - [x] **RAG Seeding**: Fixed `search_documents` test failure by seeding missing `rio_documents` entries.
 - [x] **Auth Hardening**: Implemented `x-agent-key` protocol on `/chat` endpoint to prevent direct access.
 - [x] **Thread Isolation**: Scoped `localStorage` by `userId` to prevent cross-user history leakage.
+- [x] **Build Stabilization (Railway)**: Resolved `Mastra v1.13.2` compatibility issues:
+    - Removed deprecated `.register()` calls in favor of consolidated constructor initialization.
+    - Fixed `self-signed certificate` SSL errors in `PostgresStore` by implementing `{ rejectUnauthorized: false }` for production environments.
+    - Resolved `mastra is not defined` dev-scope collision by renaming internal instance and explicitly exporting `mastra`.
+    - Restored `ingestionWorkflow` visibility by explicitly importing and registering it in the `Mastra` constructor.
 
 ---
 
@@ -78,7 +84,7 @@ All 14 findings from the CodeRabbit audit of PR #243 have been remediated in Bra
         *   Contains issues: #193, #195.
     *   **Branch 3 (User Interface)**: `feat/sprint-11-rio-chat-ux`
         *   Branch off `main` after Branch 1 and 2 are merged.
-        *   Contains issues: #180, #197, #178, #179.
+        *   Contains issues: #180, #197, #178, #179, #247.
 *   **Dependency Mapping**:
     *   **Frontend**: `RioWelcomeCard` and `CreatePopover` triggers depend heavily on `RioChatSheet` (#180). #180 depends on the Vercel BFF (#195).
     *   **Backend**: The BFF (#195) acts as the secure proxy for the Mastra RioAgent on Railway (#193). It relies on the feature flags queried at the tenant level (#199).
@@ -132,6 +138,15 @@ All 14 findings from the CodeRabbit audit of PR #243 have been remediated in Bra
 - [x] AC1: When clicking the (+) Create button, "Chat with Río" is the top option (if enabled).
 - [x] AC2: When clicked, the popover closes and the `RioChatSheet` opens immediately.
 
+### Issue #247: Rio Assistant Citation Improvements & UI Branding
+- [ ] AC1: When Rio citations are rendered, only those actually referenced in the response (e.g., `[1]`, `[2]`) are shown in the Sources section.
+- [ ] AC2: When a source is cited, the "Sources" section is a Shadcn-style collapsible element.
+- [ ] AC3: When viewing a citation preview, a "See Document" button links to the correct official document route.
+- [ ] AC4: When the chat sheet is open, the header bar is removed and replaced with a centered `RioImage` and "Ask me anything..." text.
+- [ ] AC5: When messages are displayed, the Rio icon used for the assistant and user initials for the resident.
+- [ ] AC6: When the dashboard widget is visible, the button label is "Take tour" and links to the product tour route.
+- [ ] AC7: A B-tree index on `tenant_id` is created for `rio_document_chunks` and `rio_documents`.
+
 ### ST1: Fix Stale Error Badge
 - [x] AC1: When attempting to re-index, the previous error state is atomically cleared so the error badge hides.
 
@@ -148,7 +163,7 @@ All 14 findings from the CodeRabbit audit of PR #243 have been remediated in Bra
 |-------|------|------------|--------------|
 | ST3, #199 | M+S | 1-2d | Day 1 |
 | #195, ST2, #193 | S+M | 1-2d | Day 2 - Day 3 |
-| #180 | M | 1-2d | Day 4 - Day 5 |
+| #180, #247 | M+M | 2-4d | Day 4 - Day 6 |
 | #197, #178, #179 | S+S+XS | 1-2d | Day 6 - Day 7 |
 | ST1 | XS | 2-4h | Day 7 |
 

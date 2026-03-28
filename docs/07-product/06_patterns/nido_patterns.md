@@ -480,3 +480,30 @@ This ensures a robust, fail-safe user experience even under heavy load.
 **Implementation**: 
 1. The Agent (Backend) uses `SUPABASE_SERVICE_ROLE_KEY` to download files directly for processing.
 2. The Client (Frontend) must use `supabase.storage.from('documents').createSignedUrl(path, 60)` to provide temporary access to residents for viewing sources. This ensures that even if a URL leaks, it is short-lived and non-predictable.
+
+### [2026-03-25] Mastra v1.x Instance Naming (CLI Scope)
+**Type**: Gotcha
+**Context**: `mastra dev` failed with `mastra is not defined`.
+**Problem**: Using `export const mastra = new Mastra({...})` can lead to naming collisions or scoping issues when the CLI's internal bundler renames exports (e.g., to `m`). This is especially true if `mastra` is also the default export.
+**Fix**: Define the instance using a different internal name (e.g., `app`) and then explicitly export it:
+```typescript
+const app = new Mastra({...});
+export const mastra = app;
+export default app;
+```
+
+### [2026-03-25] Production SSL Certificate Chains (Railway/Supabase)
+**Type**: Gotcha
+**Context**: `MastraError: self-signed certificate in certificate chain` in production.
+**Problem**: Cloud database providers (like Railway or Supabase) often use self-signed certificates. Strict SSL validation in the `pg` driver or `Mastra.PostgresStore` will abort the connection.
+**Fix**: Conditionally disable strict certificate validation in production if the DB URL points to a non-local host:
+```typescript
+ssl: isLocal ? false : { rejectUnauthorized: false }
+```
+*Note: Only apply this to backend-to-backend infrastructure (Agent to DB) where the network path is trusted (e.g., within Railway VPC).*
+
+### [2026-03-25] Mastra v1.x Logger Initialization
+**Type**: Gotcha
+**Context**: `TypeError: this[#storage].__setLogger is not a function`.
+**Problem**: `Mastra` `v1.13.2+` tries to inject its internal logger into the storage instance during construction. If using an older storage pattern or registering it late, this internal call fails.
+**Fix**: Always initialize and pass the `storage` instance directly into the `Mastra` constructor. Avoid legacy `.register()` calls (removed in v1.x).

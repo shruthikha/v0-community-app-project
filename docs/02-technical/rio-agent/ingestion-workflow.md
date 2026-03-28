@@ -10,7 +10,7 @@ The pipeline is implemented as a **Mastra Workflow** in `packages/rio-agent/src/
 ### 1. File Retrieval (`fetchStep`)
 - **Action**: Downloads the document blob from the **private** `documents` Supabase bucket using a relative path.
 - **Authentication**: Uses `SUPABASE_SERVICE_ROLE_KEY` via the `downloadDocument` helper.
-- **Output**: A Buffer suitable for parsing.
+- **Security**: The bucket is strictly private. Residents only access files via **Signed URLs** generated on the server with short-lived expiries. This prevents document scraping and unauthorized enumeration.
 
 ### 2. Document Parsing (`parseStep`)
 - **Service**: **LlamaParse** (LlamaIndex).

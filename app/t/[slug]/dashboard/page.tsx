@@ -193,30 +193,31 @@ export default async function ResidentDashboardPage({ params }: { params: Promis
       </div>
 
       {/* Two-Column Layout on Desktop, Ordered Stack on Mobile */}
-      <div className="flex flex-col lg:grid lg:grid-cols-2 gap-4">
-        {/* Mobile Order: 1 (Rio) | Desktop: Left Column, Top */}
-        <div className="lg:order-1">
-          {/* Spacer to align with "What's Next" title on large screens */}
-          <h3 className="text-lg font-semibold mb-3 invisible hidden lg:block" aria-hidden="true">Spacer</h3>
-          {mergedFeatures.rio && <RioWelcomeCard slug={slug} isAiEnabled={isAiEnabled} />}
+      <div className="flex flex-col lg:grid lg:grid-cols-2 gap-4 lg:items-stretch">
+        {/* Left Column: Rio + Stats */}
+        <div className="lg:order-1 flex flex-col h-full">
+          {/* Header Spacer for alignment with "What's Next" */}
+          <h3 className="text-lg font-semibold mb-3 invisible select-none pointer-events-none hidden lg:block" aria-hidden="true">&nbsp;</h3>
+
+          <div className="flex-1 flex flex-col gap-4">
+            {mergedFeatures.rio && <RioWelcomeCard slug={slug} isAiEnabled={isAiEnabled} />}
+            <div className="lg:mt-auto">
+              <CollapsibleMobileSection title="Quick Stats" defaultOpen={false}>
+                <StatsGrid />
+              </CollapsibleMobileSection>
+            </div>
+          </div>
         </div>
 
-        {/* Mobile Order: 2 (What's Next) | Desktop: Right Column */}
-        <div className="flex flex-col relative lg:order-2 lg:row-span-2 lg:max-h-[calc(100vh-16rem)]">
+        {/* Right Column: Priority Feed */}
+        <div className="flex flex-col relative lg:order-2 lg:row-span-1 lg:h-full">
           <h3 className="text-lg font-semibold mb-3">What's Next</h3>
-          <div className="relative rounded-xl overflow-hidden border bg-background flex-1">
+          <div className="relative rounded-xl overflow-hidden border bg-background flex-1 h-full min-h-[400px]">
             <ShineBorder className="absolute inset-0 pointer-events-none z-10" shineColor={["#D97742", "#6B9B47"]} />
             <div className="relative z-0 h-full">
               <PriorityFeed slug={slug} userId={user.id} tenantId={resident.tenant_id} />
             </div>
           </div>
-        </div>
-
-        {/* Mobile Order: 3 (Stats) | Desktop: Left Column, Bottom */}
-        <div className="flex flex-col lg:order-3">
-          <CollapsibleMobileSection title="Quick Stats" defaultOpen={false}>
-            <StatsGrid />
-          </CollapsibleMobileSection>
         </div>
       </div>
 

@@ -99,7 +99,13 @@ export function DashboardLayoutClient({
                 />
 
                 {/* Global Chat Sheet */}
-                <RioChatSheet tenantId={tenantId} tenantSlug={slug} userId={user.id} />
+                <RioChatSheet
+                    tenantId={tenantId}
+                    tenantSlug={slug}
+                    userId={user.id}
+                    userName={user.name}
+                    userAvatarUrl={user.avatarUrl}
+                />
             </div>
         </LanguageProvider>
     )

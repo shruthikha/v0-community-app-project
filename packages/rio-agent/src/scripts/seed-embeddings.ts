@@ -73,7 +73,6 @@ async function seed() {
         indexName: INDEX_NAME,
         dimension: DIMENSION,
         metric: 'cosine',
-        indexConfig: { type: 'hnsw', hnsw: { m: 16, efConstruction: 64 } },
     });
 
     for (const doc of documents) {

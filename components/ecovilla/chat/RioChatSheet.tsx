@@ -9,29 +9,55 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Send, Loader2, Bot, User, FileText } from "lucide-react"
+import { Send, Loader2, Bot, User, FileText, ExternalLink, ChevronDown } from "lucide-react"
 import { RioImage } from "@/components/ecovilla/dashboard/RioImage"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import Link from "next/link"
 
-const InlineCitation = ({ index, annotation }: { index: number, annotation: any }) => {
+const InlineCitation = ({ index, annotation, tenantSlug }: { index: number, annotation: any, tenantSlug: string }) => {
     if (!annotation) return <span className="text-slate-400">[{index}]</span>;
+    const docId = annotation.documentId || annotation.document_id || annotation.id || annotation.doc_id;
+
     return (
         <Popover>
             <PopoverTrigger asChild>
-                <button className="inline-flex items-center justify-center rounded-[3px] bg-slate-100 hover:bg-slate-200 border border-slate-300 px-1 text-[10px] font-bold text-slate-600 h-3.5 min-w-3.5 mx-0.5 align-baseline transition-colors relative -top-[2px]">
+                <button className="inline-flex items-center justify-center rounded-[3px] bg-forest-mist/20 hover:bg-forest-mist/40 border border-forest-mist/50 px-1 text-[10px] font-bold text-forest-deep h-3.5 min-w-3.5 mx-0.5 align-baseline transition-colors relative -top-[2px]">
                     {index}
                 </button>
             </PopoverTrigger>
-            <PopoverContent className="w-72 p-3 bg-white shadow-2xl border border-slate-200 rounded-xl z-50 pointer-events-auto" align="start" side="top">
-                <div className="space-y-2">
-                    <div className="font-semibold text-[13px] text-slate-900 flex items-center gap-2">
-                        <FileText className="h-3.5 w-3.5 text-blue-500" />
-                        <span className="line-clamp-1">{annotation.documentName}</span>
+            <PopoverContent className="w-72 p-0 bg-white shadow-2xl border border-slate-200 rounded-xl z-50 overflow-hidden" align="start" side="top">
+                <div className="p-3 space-y-2.5">
+                    <div className="font-bold text-[13px] text-slate-900 mb-1">
+                        {docId ? (
+                            <Link
+                                href={`/t/${tenantSlug}/dashboard/official/${docId}`}
+                                className="flex items-center gap-2 hover:text-primary transition-colors group/link"
+                            >
+                                <FileText className="h-3.5 w-3.5 text-primary group-hover/link:text-forest-canopy" />
+                                <span className="text-primary underline decoration-primary/30 underline-offset-4 group-hover/link:decoration-primary font-bold">{annotation.documentName}</span>
+                                <ExternalLink className="h-3 w-3 text-primary opacity-0 group-hover/link:opacity-100 transition-opacity" />
+                            </Link>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <FileText className="h-3.5 w-3.5 text-forest-deep" />
+                                <span>{annotation.documentName}</span>
+                            </div>
+                        )}
                     </div>
                     {annotation.excerpt && (
-                        <div className="text-[12px] text-slate-600 italic leading-snug line-clamp-5 border-l-2 border-slate-200 pl-2 py-0.5">
+                        <div className="text-[12px] text-slate-600 italic leading-snug line-clamp-6 border-l-2 border-slate-200 pl-2 py-0.5">
                             "{annotation.excerpt}"
                         </div>
+                    )}
+                    {docId && (
+                        <Button asChild size="sm" className="w-full h-8 text-[11px] mt-1 gap-1.5 bg-forest-deep hover:bg-forest-canopy text-white font-semibold">
+                            <Link href={`/t/${tenantSlug}/dashboard/official/${docId}`}>
+                                <ExternalLink className="h-3 w-3" />
+                                See Document
+                            </Link>
+                        </Button>
                     )}
                 </div>
             </PopoverContent>
@@ -39,7 +65,7 @@ const InlineCitation = ({ index, annotation }: { index: number, annotation: any 
     )
 }
 
-const formatMessage = (content: string, annotations: any[] = []) => {
+const formatMessage = (content: string, annotations: any[] = [], tenantSlug: string) => {
     if (!content) return null;
 
     // Pattern for [1], [2], [1, 2], [1, 2, 3] etc.
@@ -59,7 +85,7 @@ const formatMessage = (content: string, annotations: any[] = []) => {
                         const annotation = annotations[index - 1];
                         return (
                             <React.Fragment key={j}>
-                                <InlineCitation index={index} annotation={annotation} />
+                                <InlineCitation index={index} annotation={annotation} tenantSlug={tenantSlug} />
                                 {j < indices.length - 1 && <span className="text-slate-400 mr-0.5 text-[10px] -top-[2px] relative">,</span>}
                             </React.Fragment>
                         );
@@ -74,11 +100,15 @@ const formatMessage = (content: string, annotations: any[] = []) => {
 export function RioChatSheet({
     tenantId,
     tenantSlug,
-    userId
+    userId,
+    userName,
+    userAvatarUrl
 }: {
     tenantId: string,
     tenantSlug: string,
-    userId: string
+    userId: string,
+    userName?: string,
+    userAvatarUrl?: string | null
 }) {
     const isMobile = useIsMobile()
     const { isOpen, closeChat, initialQuery, openChat } = useRioChat()
@@ -168,104 +198,153 @@ export function RioChatSheet({
     }
 
     const renderMessageContent = () => (
-        <div className="flex flex-col h-full bg-slate-50/50">
+        <div className="flex flex-col h-full bg-white">
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 space-y-4">
-                        <div className="w-24 h-24">
+                        <div className="w-24 h-24 opacity-60 grayscale-[0.2]">
                             {/* @ts-ignore */}
                             <RioImage pose="general" size="lg" />
                         </div>
-                        <p className="text-sm px-4">Hello! I'm Rio. I can help answer questions about your community, facilities, and rules.</p>
+                        <p className="text-sm px-4 max-w-xs mx-auto">Hello! I'm Rio. I can help answer questions about your community, facilities, and rules.</p>
                     </div>
                 )}
 
-                {messages.map((m: any) => (
-                    <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                        <div className={`flex items-end gap-2 max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                {messages.map((m: any) => {
+                    // Extract citations early
+                    const citations = m.parts?.find((p: any) => p.type === 'data-citations')?.data || m.annotations || [];
 
-                            {/* Avatar */}
-                            <div className="shrink-0">
-                                {m.role === 'user' ? (
-                                    <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                        <User className="h-4 w-4 text-blue-600" />
-                                    </div>
-                                ) : (
-                                    <div className="h-8 w-8 bg-orange-100 rounded-full flex items-center justify-center">
-                                        <Bot className="h-4 w-4 text-orange-600" />
-                                    </div>
-                                )}
+                    // Usage Filtering Logic: Find which citation indices are actually used in the text
+                    const messageText = m.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ') || m.content || "";
+                    const usedIndices = new Set<number>();
+                    const citationMatches = messageText.matchAll(/\[([\d,\s]+)\]/g);
+                    for (const match of citationMatches) {
+                        match[1].split(',').map((s: string) => s.trim()).forEach((idxStr: string) => {
+                            const idx = parseInt(idxStr);
+                            if (!isNaN(idx)) usedIndices.add(idx);
+                        });
+                    }
+
+                    // Filter citations to only those used in text
+                    const filteredCitations = citations.filter((_: any, idx: number) => usedIndices.has(idx + 1));
+
+                    return (
+                        <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                            <div className={`flex items-start gap-3 max-w-[90%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+
+                                {/* Avatar */}
+                                <div className="shrink-0 pt-1">
+                                    {m.role === 'user' ? (
+                                        <Avatar className="h-8 w-8 border border-forest-mist/50 shadow-sm">
+                                            <AvatarImage src={userAvatarUrl || undefined} />
+                                            <AvatarFallback className="bg-forest-mist/20 text-[10px] font-bold text-forest-deep">
+                                                {userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    ) : (
+                                        <div className="h-8 w-8 flex items-center justify-center pt-1">
+                                            {/* @ts-ignore */}
+                                            <RioImage pose="general" size="xs" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Message Bubble */}
+                                <div className={`whitespace-pre-wrap px-4 py-3 rounded-2xl text-sm leading-relaxed ${m.role === 'user'
+                                    ? 'bg-primary text-primary-foreground rounded-tr-none shadow-md shadow-forest-mist/20'
+                                    : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none shadow-sm'
+                                    }`}>
+                                    {(() => {
+                                        if (m.parts?.length > 0) {
+                                            return m.parts
+                                                .filter((p: any) => p.type === 'text')
+                                                .map((p: any, i: number) => (
+                                                    <React.Fragment key={i}>{formatMessage(p.text, citations, tenantSlug)}</React.Fragment>
+                                                ));
+                                        }
+                                        return formatMessage(m.content, citations, tenantSlug);
+                                    })()}
+                                </div>
                             </div>
 
-                            {/* Message Bubble */}
-                            <div className={`whitespace-pre-wrap px-4 py-2 rounded-2xl text-sm leading-relaxed ${m.role === 'user'
-                                ? 'bg-orange-500 text-white rounded-br-sm'
-                                : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm shadow-sm'
-                                }`}>
-                                {(() => {
-                                    // #197 Remediation: Extract citations from parts (data-citations)
-                                    // DefaultChatTransport in AI SDK v6+ populates m.parts instead of m.annotations for data chunks
-                                    const citations = m.parts?.find((p: any) => p.type === 'data-citations')?.data || m.annotations || [];
-
-                                    if (m.parts?.length > 0) {
-                                        return m.parts
-                                            .filter((p: any) => p.type === 'text')
-                                            .map((p: any, i: number) => (
-                                                <React.Fragment key={i}>{formatMessage(p.text, citations)}</React.Fragment>
-                                            ));
-                                    }
-                                    return formatMessage(m.content, citations);
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Annotations / Source Citations (#197) */}
-                        {(() => {
-                            const citations = m.parts?.find((p: any) => p.type === 'data-citations')?.data || m.annotations || [];
-
-                            if (citations.length > 0 && m.role !== 'user') {
-                                return (
-                                    <div className="mt-2 ml-10 flex flex-wrap gap-2 max-w-[80%]">
-                                        {citations.map((ann: any, idx: number) => {
-                                            if (ann && typeof ann === 'object' && ann.documentName) {
-                                                return (
-                                                    <Popover key={idx}>
-                                                        <PopoverTrigger asChild>
-                                                            <button className="text-[11px] bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 px-2 py-1 rounded-md max-w-full transition-colors cursor-help flex items-center gap-1.5">
-                                                                <FileText className="h-3 w-3 text-blue-500 shrink-0" />
-                                                                <span className="font-medium line-clamp-1"> {ann.documentName}</span>
-                                                            </button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-72 p-3 bg-white shadow-2xl border border-slate-200 rounded-xl z-50" align="start" side="top">
-                                                            <div className="space-y-2">
-                                                                <div className="font-semibold text-[13px] text-slate-900 flex items-center gap-2">
-                                                                    <FileText className="h-3.5 w-3.5 text-blue-500" />
-                                                                    <span className="line-clamp-1">{ann.documentName}</span>
-                                                                </div>
-                                                                {ann.excerpt && (
-                                                                    <div className="text-[12px] text-slate-600 italic leading-snug line-clamp-6 border-l-2 border-slate-200 pl-2 py-0.5">
-                                                                        "{ann.excerpt}"
+                            {/* Annotations / Source Citations Footer */}
+                            {filteredCitations.length > 0 && m.role !== 'user' && (
+                                <div className="mt-2 ml-11 w-full max-w-[85%]">
+                                    <Collapsible className="group">
+                                        <CollapsibleTrigger asChild>
+                                            <Button variant="ghost" size="sm" className="h-7 text-[10px] text-slate-400 hover:text-slate-600 gap-1 px-1 font-medium transition-colors">
+                                                <ChevronDown className="h-3 w-3 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                                View {filteredCitations.length} {filteredCitations.length === 1 ? 'Source' : 'Sources'}
+                                            </Button>
+                                        </CollapsibleTrigger>
+                                        <CollapsibleContent className="space-y-2 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <div className="flex flex-wrap gap-2">
+                                                {filteredCitations.map((ann: any, idx: number) => {
+                                                    const originalIndex = citations.indexOf(ann) + 1;
+                                                    const docId = ann.documentId || ann.document_id || ann.id || ann.doc_id;
+                                                    if (ann && typeof ann === 'object' && ann.documentName) {
+                                                        return (
+                                                            <Popover key={idx}>
+                                                                <PopoverTrigger asChild>
+                                                                    <button className="text-[11px] bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 px-2 py-1.5 rounded-lg max-w-full transition-all cursor-help flex items-center gap-1.5 shadow-sm active:scale-95">
+                                                                        <div className="flex items-center justify-center h-4 w-4 rounded bg-slate-100 text-[9px] font-bold text-slate-500 border border-slate-200 shrink-0">
+                                                                            {originalIndex}
+                                                                        </div>
+                                                                        <span className="font-semibold line-clamp-1"> {ann.documentName}</span>
+                                                                    </button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-72 p-0 bg-white shadow-2xl border border-slate-200 rounded-xl z-50 overflow-hidden" align="start" side="top">
+                                                                    <div className="p-3 space-y-2.5">
+                                                                        <div className="font-bold text-[13px] text-slate-900 mb-1">
+                                                                            {docId ? (
+                                                                                <Link
+                                                                                    href={`/t/${tenantSlug}/dashboard/official/${docId}`}
+                                                                                    className="flex items-center gap-2 hover:text-primary transition-colors group/link"
+                                                                                >
+                                                                                    <FileText className="h-3.5 w-3.5 text-primary group-hover/link:text-forest-canopy" />
+                                                                                    <span className="text-primary underline decoration-primary/30 underline-offset-4 group-hover/link:decoration-primary font-bold">{ann.documentName}</span>
+                                                                                    <ExternalLink className="h-3 w-3 text-primary opacity-0 group-hover/link:opacity-100 transition-opacity" />
+                                                                                </Link>
+                                                                            ) : (
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <FileText className="h-3.5 w-3.5 text-forest-deep" />
+                                                                                    <span>{ann.documentName}</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        {ann.excerpt && (
+                                                                            <div className="text-[12px] text-slate-600 italic leading-snug line-clamp-6 border-l-2 border-slate-200 pl-2 py-0.5">
+                                                                                "{ann.excerpt}"
+                                                                            </div>
+                                                                        )}
+                                                                        {(ann.documentId || ann.document_id || ann.id || ann.doc_id) && (
+                                                                            <Button asChild size="sm" className="w-full h-8 text-[11px] mt-1 gap-1.5 bg-forest-deep hover:bg-forest-canopy text-white font-semibold">
+                                                                                <Link href={`/t/${tenantSlug}/dashboard/official/${ann.documentId || ann.document_id || ann.id || ann.doc_id}`}>
+                                                                                    <ExternalLink className="h-3 w-3" />
+                                                                                    See Document
+                                                                                </Link>
+                                                                            </Button>
+                                                                        )}
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                        </PopoverContent>
-                                                    </Popover>
-                                                )
-                                            }
-                                            return null
-                                        })}
-                                    </div>
-                                );
-                            }
-                            return null;
-                        })()}
-                    </div>
-                ))}
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                        )
+                                                    }
+                                                    return null
+                                                })}
+                                            </div>
+                                        </CollapsibleContent>
+                                    </Collapsible>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
 
                 {isLoading && (
                     <div className="flex items-end gap-2 max-w-[85%] flex-row">
-                        <div className="shrink-0 h-8 w-8 bg-orange-100 rounded-full flex items-center justify-center">
-                            <Loader2 className="h-4 w-4 text-orange-600 animate-spin" />
+                        <div className="shrink-0 h-8 w-8 bg-forest-mist/20 rounded-full flex items-center justify-center">
+                            <Loader2 className="h-4 w-4 text-primary animate-spin" />
                         </div>
                         <div className="px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-500 rounded-bl-sm shadow-sm">
                             <span className="inline-flex gap-1">
@@ -291,13 +370,13 @@ export function RioChatSheet({
                         value={input || ""}
                         onChange={handleInputChange}
                         placeholder="Ask Rio anything..."
-                        className="flex-1 rounded-full pl-4 pr-12 py-6 bg-slate-50 border-slate-200 focus-visible:ring-orange-500"
+                        className="flex-1 rounded-full pl-4 pr-12 py-6 bg-slate-50 border-slate-200 focus-visible:ring-forest-deep"
                         disabled={isLoading}
                     />
                     <Button
                         type="submit"
                         size="icon"
-                        className="absolute right-2 h-8 w-8 rounded-full bg-orange-500 hover:bg-orange-600 text-white transition-opacity disabled:opacity-50"
+                        className="absolute right-2 h-8 w-8 rounded-full bg-primary hover:bg-forest-canopy text-primary-foreground transition-all shadow-sm active:scale-95 disabled:opacity-50"
                         disabled={isLoading || !input?.trim()}
                     >
                         {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 -ml-0.5" />}
@@ -311,12 +390,11 @@ export function RioChatSheet({
     if (isMobile) {
         return (
             <Drawer open={isOpen} onOpenChange={closeChat}>
-                <DrawerContent className="h-[85vh] flex flex-col p-0">
-                    <DrawerHeader className="border-b px-4 py-3 text-left">
-                        <DrawerTitle className="text-lg font-semibold flex items-center gap-2">
-                            <span className="text-2xl">🦜</span> Chat with Rio
-                        </DrawerTitle>
-                    </DrawerHeader>
+                <DrawerContent className="h-[85vh] flex flex-col p-0 bg-white outline-none">
+                    <div className="px-6 py-5 flex items-center justify-center gap-3 bg-white transition-colors">
+                        <RioImage pose="general" size="sm" />
+                        <DrawerTitle className="text-base font-semibold text-slate-800 tracking-tight">Ask me anything...</DrawerTitle>
+                    </div>
                     <div className="flex-1 overflow-hidden">
                         {renderMessageContent()}
                     </div>
@@ -327,12 +405,11 @@ export function RioChatSheet({
 
     return (
         <Sheet open={isOpen} onOpenChange={closeChat}>
-            <SheetContent className="w-full sm:max-w-md flex flex-col p-0 border-l border-slate-200 shadow-xl overflow-hidden">
-                <SheetHeader className="border-b px-6 py-4 bg-white z-10">
-                    <SheetTitle className="text-lg font-semibold flex items-center gap-2">
-                        <span className="text-2xl">🦜</span> Chat with Rio
-                    </SheetTitle>
-                </SheetHeader>
+            <SheetContent className="w-full sm:max-w-md flex flex-col p-0 border-l border-slate-200 shadow-xl overflow-hidden bg-white outline-none">
+                <div className="px-6 py-5 flex items-center justify-center gap-3 bg-white">
+                    <RioImage pose="general" size="sm" />
+                    <SheetTitle className="text-base font-semibold text-slate-800 tracking-tight">Ask me anything...</SheetTitle>
+                </div>
                 <div className="flex-1 overflow-hidden">
                     {renderMessageContent()}
                 </div>

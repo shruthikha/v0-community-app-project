@@ -38,7 +38,7 @@ import { pool } from "../lib/db";
 export const memory = new Memory({
     storage: new PostgresStore({
         id: "rio-memory-store",
-        connectionString,
+        pool,
     }),
 });
 
@@ -91,7 +91,7 @@ export const search_documents = createTool({
 
             // 2. Perform vector similarity search with strict tenant filtering and document name join
             const { rows } = await pool.query(
-                `SELECT c.content, c.metadata, d.name as document_name
+                `SELECT c.content, c.metadata, d.name as document_name, d.source_document_id, d.id as internal_id
                  FROM public.rio_document_chunks c
                  JOIN public.rio_documents d ON c.document_id = d.id
                  WHERE c.tenant_id = $1 
@@ -105,6 +105,7 @@ export const search_documents = createTool({
                     content: r.content,
                     metadata: r.metadata,
                     documentName: r.document_name || "Community Document",
+                    documentId: r.source_document_id || r.internal_id,
                 })),
             };
         } catch (error: any) {
