@@ -97,6 +97,8 @@ const formatMessage = (content: string, annotations: any[] = [], tenantSlug: str
     });
 };
 
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes (M9)
+
 export function RioChatSheet({
     tenantId,
     tenantSlug,
@@ -123,17 +125,32 @@ export function RioChatSheet({
 
         const syncAndHydrate = async () => {
             const key = `rio-chat-thread-${tenantSlug}-${userId}`;
+            const activityKey = `rio-chat-activity-${tenantSlug}-${userId}`;
 
             // 1. Legacy Purge: Force server-authoritative state for Sprint 12 transition
             const hasPurged = sessionStorage.getItem(`${key}-purged`);
             if (!hasPurged) {
                 console.log("[RIO-UI] Purging legacy localStorage thread ID for Sprint 12 transition");
                 localStorage.removeItem(key);
+                localStorage.removeItem(activityKey);
                 sessionStorage.setItem(`${key}-purged`, 'true');
             }
 
             const local = localStorage.getItem(key);
+            const lastActivity = localStorage.getItem(activityKey);
+            const now = Date.now();
+
             let currentThreadId = local;
+
+            // 1.5 Session Expiry Check (Sprint 12 M9)
+            if (currentThreadId && lastActivity) {
+                const elapsed = now - parseInt(lastActivity, 10);
+                if (elapsed > SESSION_TIMEOUT_MS) {
+                    console.log(`[RIO-UI] Session expired (${Math.round(elapsed / 1000 / 60)}m inactive). Rotating thread.`);
+                    currentThreadId = null;
+                    localStorage.removeItem(key);
+                }
+            }
 
             setIsRefreshingThread(true);
             try {
@@ -220,6 +237,13 @@ export function RioChatSheet({
     // M2: Final combined message set
     const allMessages = messages;
 
+    // Activity Tracking (Sprint 12 M9): Update lastActivityAt on every interaction
+    React.useEffect(() => {
+        if (allMessages.length > 0) {
+            const activityKey = `rio-chat-activity-${tenantSlug}-${userId}`;
+            localStorage.setItem(activityKey, Date.now().toString());
+        }
+    }, [allMessages.length, tenantSlug, userId]);
     const isLoading = status === 'streaming' || status === 'submitted'
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

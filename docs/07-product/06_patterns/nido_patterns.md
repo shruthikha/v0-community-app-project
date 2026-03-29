@@ -507,3 +507,21 @@ ssl: isLocal ? false : { rejectUnauthorized: false }
 **Context**: `TypeError: this[#storage].__setLogger is not a function`.
 **Problem**: `Mastra` `v1.13.2+` tries to inject its internal logger into the storage instance during construction. If using an older storage pattern or registering it late, this internal call fails.
 **Fix**: Always initialize and pass the `storage` instance directly into the `Mastra` constructor. Avoid legacy `.register()` calls (removed in v1.x).
+
+### [2026-03-28] Framework-RLS Session Initialization
+**Type**: Pattern
+**Context**: Issue #262 (Río Memory). Frameworks like Mastra manage their own database connections, which often lack the session context required by Postgres RLS policies (e.g. `auth.uid()`).
+**Problem**: Framework writes fail or return empty results because the database doesn't know who the "current user" is within that specific connection pool.
+**Fix**: Implement an `initRls()` helper that executes `SET LOCAL app.current_tenant = ...` and `SET LOCAL app.current_user = ...` immediately before any framework storage call. This ensures the connection is securely "stamped" with the resident's identity for the duration of the transaction.
+
+### [2026-03-28] BFF-First Security Gates
+**Type**: Pattern
+**Context**: Issue #262 (RAG Bypass). Client-side components passing their own configuration (e.g. `isRagEnabled`) to a shared AI route.
+**Problem**: Malicious or buggy clients can override tenant-level security choices (e.g. turning on RAG for a tenant that has it disabled) by simply changing the request body.
+**Rule**: AI configuration must be derived **server-side** from the tenant's profile. Client-provided flags should only be used to *disable* features already enabled for the tenant, never to *enable* those that are globally restricted.
+
+### [2026-03-28] Iterative Token Pruning
+**Type**: Pattern
+**Context**: Issue #262 (TokenLimiter). Long-running AI sessions with multi-step tool calls quickly exceed the model's token limit.
+**Problem**: Simple `slice(-N)` pruning risks dropping crucial system instructions or cutting off "Thought" blocks mid-sentence during complex tool execution.
+**Fix**: Use an iterative pruning strategy in the `processInputStep` hook. Calculate the actual token count of the whole message history; if it exceeds the boundary, prune messages one-by-one from the *oldest* (excluding the system prompt) until under the limit. For single very large messages, truncate them with a "..." suffix to keep the pipeline alive.

@@ -100,11 +100,12 @@ export async function GET() {
             supabase
                 .from("exchange_transactions")
                 .select(`
-                    id, created_at,
+                    id, created_at, status, lender_id, borrower_id,
                     listing:exchange_listings!inner(title),
-                    borrower:users!exchange_transactions_borrower_id_fkey(first_name, last_name, profile_picture_url)
+                    lender:users!exchange_transactions_lender_id_fkey(id, first_name, last_name, profile_picture_url),
+                    borrower:users!exchange_transactions_borrower_id_fkey(id, first_name, last_name, profile_picture_url)
                 `)
-                .eq("lender_id", user.id)
+                .or(`lender_id.eq.${user.id},borrower_id.eq.${user.id}`)
                 .eq("status", "requested"),
 
             // 7. Exchange Confirmed (Pickup)
@@ -113,10 +114,10 @@ export async function GET() {
                 .select(`
                     id, created_at, status, lender_id, borrower_id,
                     listing:exchange_listings!inner(title),
-                    lender:users!exchange_transactions_lender_id_fkey(first_name, last_name, profile_picture_url),
-                    borrower:users!exchange_transactions_borrower_id_fkey(first_name, last_name, profile_picture_url)
+                    lender:users!exchange_transactions_lender_id_fkey(id, first_name, last_name, profile_picture_url),
+                    borrower:users!exchange_transactions_borrower_id_fkey(id, first_name, last_name, profile_picture_url)
                 `)
-                .eq("lender_id", user.id)
+                .or(`lender_id.eq.${user.id},borrower_id.eq.${user.id}`)
                 .eq("status", "confirmed"),
 
             // 8. Items Lent Out Due Soon
@@ -197,7 +198,7 @@ export async function GET() {
                     parent_event_id, recurrence_rule
                 `)
                 .in("id", Array.from(interactedEventIds))
-                .or(`end_date.is.null,end_date.gte.${nowIso}`)
+                .or(`and(end_date.is.null,start_date.gte.${nowIso}),end_date.gte.${nowIso}`)
                 .lte("start_date", nextWeek)
                 .order("start_date", { ascending: true })
                 .limit(10)
@@ -208,7 +209,11 @@ export async function GET() {
             }
 
             events?.forEach(event => {
-                const isOngoing = new Date(event.start_date) <= now && (event.end_date ? new Date(event.end_date) >= now : true)
+                const effectiveStart = new Date(event.start_date)
+                const effectiveEnd = event.end_date ? new Date(event.end_date) : null
+
+                // If end_date is null, use a 2-hour default duration for "ongoing" status logic
+                const isOngoing = effectiveStart <= now && (effectiveEnd ? effectiveEnd >= now : (effectiveStart.getTime() + 2 * 3600000 >= now.getTime()))
                 const rsvpStatus = rsvpMap.get(event.id) || null
                 const isSaved = savedSet.has(event.id)
                 let score = SCORES.upcoming_event
@@ -268,23 +273,25 @@ export async function GET() {
 
         // (Individual processing left for simplicity in mapping logic)
         requestsRes.data?.forEach(req => {
-            // @ts-ignore
-            const borrower = Array.isArray(req.borrower) ? req.borrower[0] : req.borrower
-            const borrowerName = borrower ? `${borrower.first_name} ${borrower.last_name}` : "Neighbor"
+            const isLender = req.lender_id === user.id
+            const otherParty: any = isLender
+                ? (Array.isArray(req.borrower) ? req.borrower[0] : req.borrower)
+                : (Array.isArray(req.lender) ? req.lender[0] : req.lender)
+
+            const otherName = otherParty ? `${otherParty.first_name} ${otherParty.last_name}` : "Neighbor"
             // @ts-ignore
             const listingTitle = req.listing?.title || "Item"
 
             priorityItems.push({
                 type: "exchange_request",
                 id: req.id,
-                title: `Request: ${listingTitle}`,
-                description: `${borrowerName} wants to borrow this.`,
-                urgency: "high",
+                title: isLender ? `Request: ${listingTitle}` : `Sent Request: ${listingTitle}`,
+                description: isLender ? `${otherName} wants to borrow this.` : `Waiting for ${otherName} to confirm.`,
+                urgency: isLender ? "high" : "medium",
                 timestamp: req.created_at,
-                priority: 110,
-                score: 110,
-                // @ts-ignore
-                creator_avatar: borrower?.profile_picture_url,
+                priority: isLender ? 110 : 85,
+                score: isLender ? 110 : 85,
+                creator_avatar: otherParty?.profile_picture_url,
                 transaction_id: req.id
             })
         })
@@ -303,8 +310,8 @@ export async function GET() {
             priorityItems.push({
                 type: "exchange_confirmed",
                 id: tx.id,
-                title: `Ready for Pickup: ${listingTitle}`,
-                description: `${otherName} is ready to pick this up`,
+                title: isLender ? `Ready for Pickup: ${listingTitle}` : `Pickup Ready: ${listingTitle}`,
+                description: isLender ? `${otherName} is coming to pick this up` : `You can now pick this up from ${otherName}`,
                 urgency: "medium",
                 timestamp: tx.created_at,
                 priority: 80,

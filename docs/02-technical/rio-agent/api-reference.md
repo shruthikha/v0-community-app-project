@@ -55,15 +55,8 @@ Refined during Sprint 11 QA to handle initial chat states (where `threadId` migh
 - **threadId**: `string | null | undefined`. Uses `.nullish()` Zod validation to allow graceful initialization.
 - **resourceId**: `string | null | undefined`. Optional identifier, defaults to `rio-chat`.
 
-**Example Request**:
-```json
-{
-  "messages": [{"role": "user", "content": "Hello Río!"}],
-  "threadId": "user-123-thread-abc"
-}
-```
-
-**Response**: `Server-Sent Events (SSE)`
+**Response**: `Server-Sent Events (SSE)` or `403 Forbidden`.
+*Note: If the `threadId` is missing from the store or owned by another user, the endpoint returns a `403 Forbidden` to prevent unintended auto-creation and ensure session integrity.*
 Chunks are returned as JSON objects. For RAG results, the agent streams additional citation data via a specialized protocol:
 ```text
 data: {"token": "The sky is blue."}

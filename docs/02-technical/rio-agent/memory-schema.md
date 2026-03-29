@@ -2,27 +2,31 @@
 
 Río utilizes Mastra's `PostgresStore` for persistent conversation memory. This data is stored in the `public` schema of the Supabase database.
 
-## Core Tables
+## Core Tables (Mastra v1.x)
 
-### `rio_threads`
+### `mastra_threads`
 Stores metadata for individual conversation sessions.
 - **`id`**: Unique identifier (UUID).
-- **`tenant_id`**: Multi-tenant isolation.
-- **`user_id`**: Owner of the thread.
-- **`last_active_at`**: Timestamp for ordering.
+- **`resourceId`**: Mapped to **`userId`** for strict resident-level isolation.
+- **`metadata`**: JSONB column storing our `tenantId`, `userId`, and the auto-generated `title`.
+- **`updated_at`**: Timestamp for ordering and "Active Thread" lookup.
 
-### `rio_messages`
+### `mastra_messages`
 Stores the actual message history linked to threads.
 - **`id`**: Unique identifier.
-- **`thread_id`**: Foreign key to `rio_threads`.
+- **`thread_id`**: Foreign key to `mastra_threads`.
 - **`role`**: `user`, `assistant`, or `tool`.
 - **`content`**: The message text or tool calls.
-- **`created_at`**: Timestamp for ordering.
+- **`createdAt`**: Timestamp for ordering.
+
+### `mastra_observational_memory`
+Stores the **Semantic Recall** vector embeddings. 
+- Uses the `pgvector` extension to enable cross-session context recall based on similarity thresholds (0.75).
 
 ## Mastra Memory Layers (Sprint 12)
 Río utilizes Mastra's native memory orchestration, scoped via `resourceId = userId`:
 
-1. **In-Session Context**: Standard message history (limited to last 20 messages per request).
+1. **In-Session Context**: Standard message history (limited to last 10 messages per request).
 2. **Working Memory**: A collection of learned facts about the resident (e.g., "likes tea", "preferred language is Spanish"). These are extracted by the LLM and persist across threads.
 3. **Semantic Recall**: Vectorized message history allowing the agent to perform similarity searches over past conversations to surface long-term context.
 
@@ -30,9 +34,9 @@ Río utilizes Mastra's native memory orchestration, scoped via `resourceId = use
 Tenant and User isolation is enforced via a combination of **Resource Scoping** and **PostgreSQL Row Level Security (RLS)**:
 1. The BFF ensures `resourceId` passed to Mastra is always the authenticated `userId`.
 2. Mastra scopes all `workingMemory` and `semanticRecall` operations to this `resourceId`.
-3. Database level isolation is enforced via policies on `rio_threads` and `rio_messages` matching the `tenant_id` and `user_id`.
-4. The database enforces policies: `WHERE tenant_id = (auth.jwt() ->> 'tenant_id')::uuid`.
+3. Database level isolation is enforced via policies on `mastra_threads` and `mastra_messages` matching the `app.current_tenant` and `app.current_user` session variables.
+4. The database enforces policies: `WHERE tenant_id = current_setting('app.current_tenant', true)::uuid`.
 
 ## Row Level Security (RLS)
 > [!IMPORTANT]
-> As of Sprint 8, all `rio_*` tables have RLS enabled and hardened. This ensures a strict cryptographic boundary where users can never access threads or chunks belonging to another tenant, even if the application layer fails to pass the correct filters.
+> All `mastra_*` tables in the Supabase instance have RLS enabled and hardened. This ensures a strict cryptographic boundary where users can never access threads belonging to another tenant or another resident, even if the application layer fails.

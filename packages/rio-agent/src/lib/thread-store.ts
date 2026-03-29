@@ -1,7 +1,34 @@
 import { Memory } from "@mastra/memory";
 
+import { pool } from "./db.js";
+
 export class ThreadStore {
     constructor(private memory: Memory) { }
+
+    /**
+     * M9: RLS Session Initialization
+     * Ensures that the database connection has the correct tenant and user context.
+     */
+    /**
+     * M9: RLS Session Initialization
+     * CAUTION: Due to connection pooling, this must be called immediately before
+     * any database operation on the same client.
+     */
+    private async initRls(tenantId: string, userId?: string) {
+        if (!tenantId) return;
+        try {
+            // We use the pool to set session variables. 
+            // NOTE: In a pooled environment, this is only reliable if the subsequent 
+            // operation is guaranteed to use the same connection or if we use a dedicated client.
+            await pool.query(`
+                SET LOCAL app.current_tenant = ${JSON.stringify(tenantId)};
+                ${userId ? `SET LOCAL app.current_user = ${JSON.stringify(userId)};` : ""}
+            `);
+        } catch (err) {
+            console.error("[RIO-THREADSTORE] RLS init failed:", err);
+            throw new Error(`Failed to initialize security context for tenant ${tenantId}`);
+        }
+    }
 
     /**
      * Enforces that all thread IDs include the tenantId as a prefix.
@@ -31,6 +58,7 @@ export class ThreadStore {
         if (!tenantId) throw new Error("tenantId is required to create a thread.");
 
         const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
+        await this.initRls(tenantId, userId);
 
         return this.memory.createThread({
             threadId: namespacedThreadId,
@@ -47,6 +75,7 @@ export class ThreadStore {
         if (!tenantId) throw new Error("tenantId is required to fetch a thread.");
 
         const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
+        await this.initRls(tenantId, userId);
         const thread = await this.memory.getThreadById({ threadId: namespacedThreadId });
 
         if (!thread) return null;
@@ -97,6 +126,7 @@ export class ThreadStore {
         if (!thread) return [];
 
         const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
+        await this.initRls(tenantId, userId);
         const result = await this.memory.recall({ threadId: namespacedThreadId });
 
         // Ensure chronological order
@@ -113,6 +143,7 @@ export class ThreadStore {
         if (!thread) throw new Error("Forbidden: Thread ownership mismatch");
 
         const namespacedThreadId = this.generateTenantThreadId(tenantId, threadId);
+        await this.initRls(tenantId, userId);
         const messagesWithMetadata = messages.map(m => ({
             id: m.id || `msg-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
             ...m,

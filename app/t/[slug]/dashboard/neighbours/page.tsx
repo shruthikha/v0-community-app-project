@@ -82,13 +82,13 @@ export default async function NeighboursPage({ params }: { params: Promise<{ slu
     getNeighborLists(currentResident.tenant_id)
   ])
 
-  if (!residentsRes.data || !familiesRes.data || !neighborhoodsRes.data) {
+  if (residentsRes.error || familiesRes.error || neighborhoodsRes.error) {
     console.error("[NeighboursPage] Failed to load essential dashboard data:", {
       residents: residentsRes.error,
       families: familiesRes.error,
       neighborhoods: neighborhoodsRes.error
     })
-    // Optionally redirect or show error - for now we proceed safely
+    throw new Error("Failed to load neighbours dashboard data. Please try again later.")
   }
 
   const residents = residentsRes.data || []

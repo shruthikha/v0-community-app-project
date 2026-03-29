@@ -68,8 +68,10 @@ export async function POST(req: NextRequest) {
             .single()
 
         const rioConfig = tenant?.features?.rio
+        const tenantRagEnabled = rioConfig?.rag === true
+        const isRagEnabled = tenantRagEnabled && (body.isRagEnabled !== false);
 
-        // Strict Check: Bio AI must be enabled
+        // Strict Check: Rio AI must be enabled
         if (tenantError || !rioConfig?.enabled) {
             clearTimeout(totalTimeoutId)
             console.warn(`[API/v1/ai/chat] Access denied for tenant ${requestedTenantId}: Rio disabled`)
@@ -79,12 +81,45 @@ export async function POST(req: NextRequest) {
             )
         }
 
-        // RAG flag (Determines if the agent can use document search tools)
-        const isRagEnabled = !!rioConfig?.rag
+        // 1.3 Fetch Resident Profile for Tier 3 Context (Sprint 12 M4)
+        const { data: profile, error: profileError } = await supabase
+            .from('users')
+            .select(`
+                id, first_name, last_name, about, current_country,
+                preferred_language, languages,
+                user_interests (interests (name)),
+                user_skills (skills (name))
+            `)
+            .eq('id', user.id)
+            .single()
+
+        if (profileError) {
+            console.warn(`[API/v1/ai/chat] Profile enrichment failed for user ${user.id}:`, profileError)
+        }
+
+        let residentContext = ''
+        if (profile) {
+            const interests = (profile.user_interests as any[] || [])
+                .map((ui: any) => ui.interests?.name)
+                .filter(Boolean)
+            const skills = (profile.user_skills as any[] || [])
+                .map((us: any) => us.skills?.name)
+                .filter(Boolean)
+
+            const languagesSpoken = Array.isArray(profile.languages) ? profile.languages.join(', ') : '';
+
+            residentContext = `Resident Name: ${profile.first_name || ''} ${profile.last_name || ''}
+Bio: ${profile.about || 'N/A'}
+Current Country: ${profile.current_country || 'N/A'}
+Preferred Language: ${profile.preferred_language || 'English'}
+Languages Spoken: ${languagesSpoken || 'N/A'}
+Interests: ${interests.length > 0 ? interests.join(', ') : 'None listed'}
+Skills: ${skills.length > 0 ? skills.join(', ') : 'None listed'}`
+        }
 
         const messages = body.messages || []
         const threadId = body.threadId
-        const resourceId = user.id // Force userId for memory isolation (Sprint 12 M1)
+        const resourceId = user.id // Force userId for memory isolation (Sprint 12 M1-M7)
         const idempotencyKey = body.idempotencyKey || `chat-${user.id}-${Date.now()}`
 
         // 2. Forward to Railway with Tiered Timeout and Retry
@@ -114,6 +149,7 @@ export async function POST(req: NextRequest) {
                         'x-tenant-id': requestedTenantId,
                         'x-user-id': user.id,
                         'x-rag-enabled': String(isRagEnabled),
+                        'x-resident-context': Buffer.from(residentContext).toString('base64'),
                         'x-agent-key': process.env.RIO_AGENT_KEY || '',
                         'x-idempotency-key': idempotencyKey
                     },

@@ -2,6 +2,14 @@
 
 The Rio Agent is a specialized AI service built using **Mastra** to assist residents within the Nido community. It handles multi-tenant conversations and provides contextual answers via a RAG (Retrieval-Augmented Generation) pipeline.
 
+## ⚡ Hardening & Security (Sprint 12)
+
+### RLS Session Initialization
+The `ThreadStore` manages a dedicated `initRls(tenantId, userId)` hook. This ensures that every call to the Mastra `Memory` instance is wrapped in a Postgres transaction where `app.current_tenant` and `app.current_user` are set. This is critical for maintaining data isolation in framework-managed tables.
+
+### Server-Authoritative Threads
+Thread IDs are never generated on the client. The `/api/v1/ai/threads/new` endpoint handles creation, ensuring that `tenantId` and `userId` metadata are stamped server-side in a "Backend-First" manner.
+
 ## Core Capabilities
 
 ### 1. Multi-Tenant Isolation (Issue 169)
@@ -30,19 +38,21 @@ Río provides a dedicated chat interface for residents:
 - **Components**: `RioChatSheet` (responsive Sheet/Drawer) and `RioWelcomeCard` (dashboard entry).
 - **State Management**: `use-rio-chat` Zustand store for global sheet visibility.
 - **Hydration**: (Sprint 12) Support for **Message Hydration** upon opening the sheet. The BFF proxies the last 10 messages from Mastra's `listMessages` to prevent an empty state on session resume.
-- **Thread Management**: (Sprint 12) **Server-Authoritative Threads**. Thread IDs are generated via `POST /api/v1/ai/threads/new` and associated with `userId` and `tenantId` metadata on creation.
+- **Thread Management**: (Sprint 12) **Server-Authoritative Threads**. Thread IDs are generated via `POST /api/v1/ai/threads/new`. The `/chat` endpoint now strictly requires an existing thread and will return a `403 Forbidden` if the thread does not exist or is not owned by the requesting user. Metadata (`tenantId`, `userId`) is associated on creation.
 - **Interactive Citations**: RAG sources are rendered as interactive Popovers.
 
-### 4. Agent Instruction Logic
+### 4. Agent Instruction Logic (M4)
 Río uses a 3-tier instruction system injected via the system prompt:
 1. **Global Context**: Base instructions (Persona, Safety, Tool usage).
 2. **Property Context**: Community-wide configurations (Emergency contacts, policies).
-3. **Resident Context**: Personalized info (Name, Lot number, Interests) fetched via Supabase in the BFF and injected into the Tier 1 prompt.
+3. **Resident Context**: Personalized info (Name, Lot number, Interests, Languages, Country) fetched via Supabase in the BFF and injected into the Tier 1 prompt.
+    - **Encoding**: The context is **Base64 encoded** in the `x-resident-context` header to safely transport non-ASCII characters (emojis, accented names).
 
 ### 5. Multi-Tenant Isolation & Security
 - **BFF Gatekeeping**: Authenticated Admin-only triggers for ingestion.
 - **Shared Secret**: `x-agent-key` (`RIO_AGENT_KEY`) verifies BFF-to-Agent communication.
 - **Memory Scoping**: (Sprint 12) `resourceId` is strictly set to `userId`. This scopes Mastra's **Working Memory** and **Semantic Recall** to the individual resident, ensuring cross-session continuity without data leakage between users.
+- **Token Safety**: (Sprint 12) A `TokenLimiter` processor caps context at 50k tokens to prevent memory-bloat regressions.
 - **RLS Enforcement**: "Backend-First" security model.
 
 ## API Reference

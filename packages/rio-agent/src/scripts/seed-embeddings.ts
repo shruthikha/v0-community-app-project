@@ -62,9 +62,9 @@ El aforo máximo es de 50 personas.
 async function seed() {
     console.log('--- Starting Seeding Process ---');
 
-    const vectorStore = mastra.getVector(INDEX_NAME);
+    const vectorStore = mastra.getVector("main");
     if (!vectorStore) {
-        throw new Error(`Vector store '${INDEX_NAME}' not found in Mastra instance`);
+        throw new Error(`Vector store 'main' not found in Mastra instance. Please check your configuration in index.ts`);
     }
 
     // Create or ensure the index exists

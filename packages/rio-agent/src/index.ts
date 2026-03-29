@@ -1,6 +1,4 @@
-import { Memory } from "@mastra/memory";
 import { Mastra } from "@mastra/core";
-import { PostgresStore } from "@mastra/pg";
 import { registerApiRoute } from "@mastra/core/server";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
@@ -11,6 +9,7 @@ import { RequestContext } from "@mastra/core/request-context";
 import { supabaseAdmin } from "./lib/supabase";
 import { createHash } from 'node:crypto';
 import { ingestionWorkflow } from "./workflows/ingest";
+import { memory, storage, vectorStore } from "./lib/memory.js";
 
 /**
  * Masks a UUID or similar identifier for safe logging.
@@ -40,12 +39,7 @@ function requireEnv(name: string): string {
 const rioAgentKey = requireEnv("RIO_AGENT_KEY");
 const RIO_MODEL_ID = process.env.RIO_MODEL_ID || "google/gemini-2.5-flash";
 
-const storage = new PostgresStore({
-    id: "rio-storage",
-    pool,
-});
-
-const memory = new Memory({ storage });
+// Memory and Storage are now imported from ./lib/memory.ts
 
 
 const ChatBodySchema = z.object({
@@ -65,6 +59,7 @@ export const app = new Mastra({
     agents: { rioAgent },
     workflows: { ingest: ingestionWorkflow },
     storage,
+    vectors: { main: vectorStore },
     memory: { main: memory },
     server: {
         port: Number(process.env.PORT) || 3001,
@@ -214,6 +209,10 @@ export const app = new Mastra({
                         const ragEnabledHeader = c.req.header("x-rag-enabled");
                         const isRagEnabled = ragEnabledHeader === "true";
 
+                        // M4: Resident Context Injection (Tier 3)
+                        const residentContextRaw = c.req.header("x-resident-context");
+                        const residentContext = residentContextRaw ? Buffer.from(residentContextRaw, 'base64').toString('utf-8') : '';
+
                         // 3-Tier Prompt Composition
                         let systemPrompt = (rioAgent as any).instructions;
                         try {
@@ -248,6 +247,11 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
                             console.warn(`[RIO-AGENT] Using fallback system prompt for ${maskId(tenantId)}: ${e.message}`);
                         }
 
+                        // M4: Final Tier 3 Injection
+                        if (residentContext) {
+                            systemPrompt += `\n\n## Resident Context\n${residentContext}\n`;
+                        }
+
                         const requestContext = new RequestContext();
                         requestContext.set("tenantId", tenantId as string);
                         requestContext.set("ragEnabled", isRagEnabled);
@@ -265,7 +269,7 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
                             requestContext,
                             memory: {
                                 thread: threadStore.generateTenantThreadId(tenantId as string, effectiveThreadId),
-                                resource: userId as string, // M1: Forced userId for persistent memory lookup
+                                resource: userId as string, // Sprint 12 M1-M7: userId as resource for multi-tenant isolation
                             },
                             abortSignal: c.req.raw.signal,
                         });

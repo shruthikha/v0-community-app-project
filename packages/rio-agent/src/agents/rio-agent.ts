@@ -1,7 +1,5 @@
 import { Agent } from "@mastra/core/agent";
 import { createTool } from "@mastra/core/tools";
-import { Memory } from "@mastra/memory";
-import { PostgresStore } from "@mastra/pg";
 import { z } from "zod";
 import pg from "pg";
 import { generateEmbedding } from "../lib/embeddings.js";
@@ -26,21 +24,8 @@ if (!connectionString) {
     }
 }
 
-import { pool } from "../lib/db";
-
-/**
- * RioAgent — Sprint 0 scaffold stub.
- *
- * This is a minimal definition to validate that @mastra/core initializes
- * correctly inside the Railway service. No tools or memory are wired yet;
- * those are added in Sprint 8 (Foundation).
- */
-export const memory = new Memory({
-    storage: new PostgresStore({
-        id: "rio-memory-store",
-        pool,
-    }),
-});
+import { pool } from "../lib/db.js";
+import { memory, TokenLimiter } from "../lib/memory.js";
 
 /**
  * RAG Tool: search_documents
@@ -52,9 +37,8 @@ export const search_documents = createTool({
     inputSchema: z.object({
         query: z.string().describe("The search query for the semantic search"),
     }),
-    execute: async (input, context) => {
+    execute: async (input: { query: string }, context: any) => {
         // Robust Metadata Retrieval (#193 remediation)
-        // We try RequestContext (official), then Agent Memory (fallback), then any potential flat properties
         const rawTenantId =
             context.requestContext?.get?.("tenantId") ||
             (context as any)?.memory?.metadata?.tenantId ||
@@ -89,7 +73,7 @@ export const search_documents = createTool({
             // 1. Generate embedding for the search query
             const queryEmbedding = await generateEmbedding(input.query);
 
-            // 2. Perform vector similarity search with strict tenant filtering and document name join
+            // 2. Perform vector similarity search with strict tenant filtering
             const { rows } = await pool.query(
                 `SELECT c.content, c.metadata, d.name as document_name, d.source_document_id, d.id as internal_id
                  FROM public.rio_document_chunks c
@@ -134,6 +118,7 @@ export const rioAgent = new Agent({
         "- Keep it casual but clear",
     model: RIO_MODEL_ID,
     memory,
+    inputProcessors: [new TokenLimiter()],
     tools: {
         search_documents,
     },

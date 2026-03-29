@@ -44,9 +44,9 @@ const testCases = [
 async function validate() {
     console.log('--- Starting Embedding Validation ---');
 
-    const vectorStore = mastra.getVector(INDEX_NAME);
+    const vectorStore = mastra.getVector("main");
     if (!vectorStore) {
-        throw new Error(`Vector store '${INDEX_NAME}' not found`);
+        throw new Error(`Vector store 'main' not found in Mastra instance`);
     }
 
     let successCount = 0;
