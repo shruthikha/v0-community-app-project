@@ -39,8 +39,7 @@ export function NotificationsClient({
       console.log("[v0] Fetching notifications from API...")
       const response = await fetch(`/api/notifications/${tenantId}`)
       if (!response.ok) {
-        console.log("[v0] API response not ok, using initial notifications")
-        return initialNotifications
+        throw new Error("Failed to fetch notifications")
       }
       const data = await response.json()
       console.log("[v0] API returned data:", data)

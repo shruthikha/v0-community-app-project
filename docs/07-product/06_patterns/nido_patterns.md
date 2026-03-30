@@ -520,8 +520,34 @@ ssl: isLocal ? false : { rejectUnauthorized: false }
 **Problem**: Malicious or buggy clients can override tenant-level security choices (e.g. turning on RAG for a tenant that has it disabled) by simply changing the request body.
 **Rule**: AI configuration must be derived **server-side** from the tenant's profile. Client-provided flags should only be used to *disable* features already enabled for the tenant, never to *enable* those that are globally restricted.
 
-### [2026-03-28] Iterative Token Pruning
+### [2026-03-29] Historical Fact Redaction (Forgetting)
 **Type**: Pattern
-**Context**: Issue #262 (TokenLimiter). Long-running AI sessions with multi-step tool calls quickly exceed the model's token limit.
-**Problem**: Simple `slice(-N)` pruning risks dropping crucial system instructions or cutting off "Thought" blocks mid-sentence during complex tool execution.
-**Fix**: Use an iterative pruning strategy in the `processInputStep` hook. Calculate the actual token count of the whole message history; if it exceeds the boundary, prune messages one-by-one from the *oldest* (excluding the system prompt) until under the limit. For single very large messages, truncate them with a "..." suffix to keep the pipeline alive.
+**Context**: Issue #259 (Privacy Settings). When a resident deletes a learned fact (e.g. "I like Pokémon") from their working memory, the LLM often "re-learns" it by reading its own past messages in the conversation history ("Ghost Memory").
+**Problem**: Working Memory deletion alone is insufficient for GDPR compliance if the PII persists in raw logs or semantic recall buffers.
+**Fix**: Implement an **Automated Forgetting Trigger**. When a memory index is deleted:
+1. Perform a case-insensitive `regexp_replace(content, fact, '[REDACTED]', 'gi')` on all `mastra_messages` for that user.
+2. `DELETE` all related chunks from the `memory_messages` vector table.
+3. Enforce **Memory Sovereignty** in the system prompt, instructing the agent to ignore conflicting facts found in historical context.
+
+### [2026-03-29] Dynamic Path Revalidation
+**Type**: Gotcha
+**Context**: Issue #259 (Privacy Settings). `revalidatePath("/t/[slug]/dashboard/...")` failed to clear the cache when the literal `[slug]` was used.
+**Problem**: Next.js `revalidatePath` requires the actual path seen by the user. Generic segment patterns do not match dynamic instances correctly in all cache layers.
+**Fix**: Always interpolate the actual slug: `revalidatePath(\`/t/\${slug}/dashboard/...\`)`.
+
+### [2026-03-29] Agent Thread Defensiveness
+**Type**: Gotcha
+**Context**: Issue #262 (Río Memory). Agent update handlers assumed a thread would be found from context.
+**Problem**: If `listThreads` returns empty (e.g. race condition or session purge), the next line trying to access `threads[0].id` crashes with a 500.
+**Fix**: Always validate ID existence: `if (!threadId) return c.json({ error: "..." }, 404)`.
+
+### [2026-03-29] POSIX Regex Injection
+**Type**: Gotcha
+**Context**: Issue #259 (Historical Pruning). User-provided facts were used directly in `regexp_replace` and `~*` operations.
+**Problem**: A malicious (or accidental) string like `.*` or `(a|b)*` can cause ReDoS or unintended widespread redaction.
+**Fix**: Always escape regex metacharacters before SQL insertion: `fact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')`.
+
+### [2026-03-29] Focus-Visibility for Mobile UI
+**Type**: Pattern
+**Context**: Accessibility Audit. Action buttons that appear on `:hover` (group-hover) were unreachable on mobile or for keyboard users.
+**Fix**: Use `focus-within:opacity-100` alongside `group-hover:opacity-100`. This ensures that tabbing into the hidden element makes it visible and interactive.

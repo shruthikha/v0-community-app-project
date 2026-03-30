@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 
 /**
  * Shared database connection pool and SSL configuration
@@ -31,6 +31,20 @@ export const pool = new Pool({
     max: 10,
 });
 
+// M9: Security Hardening - Reset RLS context on every pool release
+// This prevents "context leaking" where one tenant's RLS session persists 
+// into a subsequent request that acquires the same connection.
+pool.on('release', (err: any, client: PoolClient) => {
+    // We use a dedicated client query here to ensure the session is reset 
+    // before the next consumer acquires it from the pool.
+    // Note: 'err' may be provided if the connection was released due to an error.
+    if (client) {
+        client.query("SELECT set_config('app.current_tenant', '', false), set_config('app.current_user', '', false)").catch((qErr: any) => {
+            console.error("[DB:RLS] Failed to reset context on release:", qErr);
+        });
+    }
+});
+
 export async function query(text: string, params?: any[]) {
     const start = Date.now();
     const res = await pool.query(text, params);
@@ -39,4 +53,21 @@ export async function query(text: string, params?: any[]) {
         console.log("executed query", { text, duration, rows: res.rowCount });
     }
     return res;
+}
+
+/**
+ * M9: RLS Session Initialization
+ * Ensures that the database connection has the correct tenant and user context.
+ * Note: Since we use pooling, we rely on the 'release' listener above to clean up.
+ */
+export async function initRls(tenantId: string, userId?: string) {
+    if (!tenantId) return;
+    try {
+        const queryText = `SELECT set_config('app.current_tenant', $1, false)${userId ? ", set_config('app.current_user', $2, false)" : ""}`;
+        const params = userId ? [tenantId, userId] : [tenantId];
+        await pool.query(queryText, params);
+    } catch (err) {
+        console.error("[DB:RLS] init failed:", err);
+        throw new Error(`Failed to initialize security context for tenant ${tenantId}`);
+    }
 }

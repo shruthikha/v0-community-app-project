@@ -1,6 +1,6 @@
 import { Memory } from "@mastra/memory";
 
-import { pool } from "./db.js";
+import { pool, initRls } from "./db.js";
 
 export class ThreadStore {
     constructor(private memory: Memory) { }
@@ -14,20 +14,8 @@ export class ThreadStore {
      * CAUTION: Due to connection pooling, this must be called immediately before
      * any database operation on the same client.
      */
-    private async initRls(tenantId: string, userId?: string) {
-        if (!tenantId) return;
-        try {
-            // We use the pool to set session variables. 
-            // NOTE: In a pooled environment, this is only reliable if the subsequent 
-            // operation is guaranteed to use the same connection or if we use a dedicated client.
-            await pool.query(`
-                SET LOCAL app.current_tenant = ${JSON.stringify(tenantId)};
-                ${userId ? `SET LOCAL app.current_user = ${JSON.stringify(userId)};` : ""}
-            `);
-        } catch (err) {
-            console.error("[RIO-THREADSTORE] RLS init failed:", err);
-            throw new Error(`Failed to initialize security context for tenant ${tenantId}`);
-        }
+    public async initRls(tenantId: string, userId?: string) {
+        return initRls(tenantId, userId);
     }
 
     /**

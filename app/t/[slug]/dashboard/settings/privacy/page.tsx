@@ -19,11 +19,29 @@ export default async function PrivacySettingsPage({
     redirect(`/t/${slug}/login`)
   }
 
-  // Get current resident
-  const { data: resident } = await supabase.from("users").select("id, tenant_id").eq("id", user.id).single()
+  // Get current resident and tenant features
+  const { data: resident, error: residentError } = await supabase
+    .from("users")
+    .select("id, tenant_id, tenants:tenant_id(slug, features)")
+    .eq("id", user.id)
+    .single()
 
-  if (!resident) {
-    redirect(`/t/${slug}/login`)
+  if (residentError || !resident) {
+    console.error(`[PrivacySettingsPage] Failed to fetch resident:`, residentError)
+    redirect(`/login`) // Fallback to main login if context is lost
+  }
+
+  const tenant = (resident as any).tenants
+  const tenantFeatures = tenant?.features || {}
+  const tenantSlug = tenant?.slug
+  const rioEnabled = tenantFeatures.rio?.enabled === true
+
+  // M12: Fail-closed Security Policy
+  // Ensure the URL slug strictly matches the resident's authorized tenant context.
+  if (!tenantSlug || tenantSlug !== slug) {
+    console.warn(`[PrivacySettingsPage] SECURITY: Unauthorized access attempt. Resident ${user.id} (tenant: ${tenantSlug || 'none'}) tried to access URL slug: ${slug}`)
+    // Redirect to login to force re-authentication or context correction
+    redirect(`/login`)
   }
 
   // Get privacy settings
@@ -45,7 +63,7 @@ export default async function PrivacySettingsPage({
 
   return (
     <SettingsLayout tenantSlug={slug} title="Privacy Settings" description="Control what information is visible to others">
-      <PrivacySettingsForm privacySettings={privacySettings} tenantSlug={slug} />
+      <PrivacySettingsForm privacySettings={privacySettings} tenantSlug={slug} rioEnabled={rioEnabled} />
     </SettingsLayout>
   )
 }

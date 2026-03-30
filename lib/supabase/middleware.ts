@@ -82,7 +82,8 @@ export async function updateSession(request: NextRequest) {
 
           if (!isLoginPage) {
             const url = request.nextUrl.clone()
-            url.pathname = `/t/${request.nextUrl.pathname.split('/')[2] || 'ecovilla-san-mateo'}/login`
+            const tenantSlug = url.pathname.split('/')[2]
+            url.pathname = tenantSlug ? `/t/${tenantSlug}/login` : "/login"
             url.searchParams.set("reason", "timeout")
             const redirectResponse = NextResponse.redirect(url)
 

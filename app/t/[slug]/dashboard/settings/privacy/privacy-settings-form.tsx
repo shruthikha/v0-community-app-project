@@ -11,6 +11,7 @@ import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { updatePrivacySettings } from "@/app/actions/privacy-settings"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { RioMemorySection } from "./rio-memory-section"
 
 interface PrivacySettings {
   id: string
@@ -36,9 +37,10 @@ interface PrivacySettings {
 interface PrivacySettingsFormProps {
   privacySettings: PrivacySettings
   tenantSlug: string
+  rioEnabled?: boolean
 }
 
-export function PrivacySettingsForm({ privacySettings, tenantSlug }: PrivacySettingsFormProps) {
+export function PrivacySettingsForm({ privacySettings, tenantSlug, rioEnabled = false }: PrivacySettingsFormProps) {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [settings, setSettings] = useState({
@@ -189,6 +191,12 @@ export function PrivacySettingsForm({ privacySettings, tenantSlug }: PrivacySett
           </Card>
         ))}
       </div>
+
+      {rioEnabled && (
+        <div className="mt-8">
+          <RioMemorySection />
+        </div>
+      )}
 
       <div className="sticky bottom-6 flex justify-end pt-4">
         <Button type="submit" size="lg" className="shadow-lg" disabled={isLoading}>

@@ -23,16 +23,42 @@ export default async function TenantLoginPage({
   const errorKey = Array.isArray(rawError) ? rawError[0] : rawError
   const urlError = errorKey ? ERROR_MESSAGES[errorKey] : undefined
   const supabase = await createClient()
+  const MAX_RETRIES = 2
+  let tenant = null
+  let tenantError = null
 
-  // Check if tenant exists
-  const { data: tenant, error } = await supabase.from("tenants").select("id, name, slug").eq("slug", slug).maybeSingle()
+  // Retry logic for transient DB connection issues during dev restarts
+  for (let i = 0; i <= MAX_RETRIES; i++) {
+    const { data, error } = await supabase
+      .from("tenants")
+      .select("id, name, slug")
+      .eq("slug", slug)
+      .maybeSingle()
 
-  if (error || !tenant) {
+    tenant = data
+    tenantError = error
+
+    if (!error || i === MAX_RETRIES) break
+    // Exponential backoff
+    await new Promise((resolve) => setTimeout(resolve, Math.pow(2, i) * 500))
+  }
+
+  if (tenantError || !tenant) {
+    const isDbError = !!tenantError
     return (
       <div className="flex min-h-screen items-center justify-center bg-earth-cloud p-4">
         <div className="w-full max-w-md space-y-4 rounded-lg border border-clay-red/20 bg-white p-8 shadow-lg text-center">
-          <h1 className="text-2xl font-bold text-clay-red">Community Not Found</h1>
-          <p className="text-mist-gray">The community "{slug}" does not exist or is not available.</p>
+          <h1 className="text-2xl font-bold text-clay-red">
+            {isDbError ? "System Temporarily Unavailable" : "Community Not Found"}
+          </h1>
+          <p className="text-mist-gray">
+            {isDbError
+              ? "We're having trouble connecting to the database. Please try refreshing in a few seconds."
+              : `The community "${slug}" does not exist or is not available.`}
+          </p>
+          {isDbError && tenantError && process.env.NODE_ENV !== "production" && (
+            <p className="text-xs text-clay-red/60 mt-4 tabular-nums">Error: {tenantError.message}</p>
+          )}
         </div>
       </div>
     )

@@ -31,9 +31,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RailwayStatus } from "./railway-status"
 
 const formSchema = z.object({
-    persona: z.string().max(2000).optional(),
+    persona: z.string().max(5000).optional(),
     tone: z.string().optional(),
-    community_policies: z.string().max(2000).optional(),
+    community_policies: z.string().max(5000).optional(),
     sign_off_message: z.string().max(200).optional(),
     emergency_contacts: z.array(z.any()).optional(),
 })
@@ -148,8 +148,8 @@ export function RioSettingsForm({ slug, tenantId, initialData }: RioSettingsForm
                                     <FormItem>
                                         <div className="flex items-center justify-between">
                                             <FormLabel>Persona Prompt</FormLabel>
-                                            <span className={`text-[10px] ${personaCount > 1800 ? "text-destructive font-bold" : "text-muted-foreground"}`}>
-                                                {personaCount}/2,000
+                                            <span className={`text-[10px] ${personaCount > 4500 ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                                                {personaCount}/5,000
                                             </span>
                                         </div>
                                         <FormControl>
@@ -200,8 +200,8 @@ export function RioSettingsForm({ slug, tenantId, initialData }: RioSettingsForm
                                     <FormItem>
                                         <div className="flex items-center justify-between">
                                             <FormLabel>Policy Details</FormLabel>
-                                            <span className={`text-[10px] ${policiesCount > 1800 ? "text-destructive font-bold" : "text-muted-foreground"}`}>
-                                                {policiesCount}/2,000
+                                            <span className={`text-[10px] ${policiesCount > 4500 ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                                                {policiesCount}/5,000
                                             </span>
                                         </div>
                                         <FormControl>

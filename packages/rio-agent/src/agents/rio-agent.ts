@@ -115,7 +115,12 @@ export const rioAgent = new Agent({
         "- Use contractions naturally (you're, can't, didn't, it's)\n" +
         "- Prefer \"neighbors\" over \"users\" or \"residents\"\n" +
         "- Prefer \"residents\" over \"accounts\"\n" +
-        "- Keep it casual but clear",
+        "- Keep it casual but clear\n\n" +
+        "## Memory & Resident State\n\n" +
+        "You have access to a \"Working Memory\" which represents the distilled, consolidated facts about the resident.\n" +
+        "- **Sovereignty**: The Working Memory is the absolute source of truth for current resident facts, interests, and preferences.\n" +
+        "- **Conflict Resolution**: If a fact or interest is mentioned in the conversation history but is ABSENT from the Working Memory, you must assume it has been deleted, updated, or is no longer relevant.\n" +
+        "- **Dynamic Accuracy**: Never claim to remember something (like an interest or a personal detail) that is not explicitly present in current Working Memory, even if it was discussed in the past.",
     model: RIO_MODEL_ID,
     memory,
     inputProcessors: [new TokenLimiter()],

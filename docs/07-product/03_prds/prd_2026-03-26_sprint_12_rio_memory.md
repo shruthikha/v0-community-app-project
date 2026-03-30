@@ -2,8 +2,9 @@
 
 **Date**: 2026-03-26
 **Sprint**: 12
-**Status**: 🟢 Complete (Phase 1-5 Hardening)
+**Status**: 🟢 Complete (All phases finalized, including QA hardening)
 **Epic**: [[Epic] Río AI — Sprint 12: Agent Memory & Conversation Continuity (#163)](https://github.com/mjcr88/v0-community-app-project/issues/163)
+**Note**: M10 and M11 have been moved to the backlog and are out of scope for the current sprint implementation.
 **Lead Agents**: `backend-specialist`, `frontend-specialist`
 
 ---
@@ -40,7 +41,7 @@ A "session" is defined by 15 minutes of inactivity. When the resident re-opens t
 - **New Chat**: An explicit "Start new chat" button creates a fresh thread immediately.
 - **Privacy Settings**: A new settings page at `/t/[slug]/dashboard/settings/privacy` lets residents view all facts Río has learned about them, delete individual facts, or wipe everything.
 
-### Profile Personalization (Tier 3 Injection)
+### Profile- [x] Persona customization (Extended to 5,000 characters).
 
 The BFF fetches the resident's profile on every chat request and injects it into the system prompt **Tier 3** block. This gives Río immediate personalization without requiring the LLM to "learn" basic facts from scratch. Fields injected: `name`, `language_preference` (from user profile), `interests[]`, `skills[]`, `neighborhood`, `lot_number`.
 
@@ -59,9 +60,10 @@ The BFF fetches the resident's profile on every chat request and injects it into
 | M7  | Agent: Wire `userId` as `resourceId` for working memory + semantic recall scoping            | [#255](https://github.com/mjcr88/v0-community-app-project/issues/255) | P1       |  XS  | 2-4h       | 🟢 Complete |
 | M8  | Agent: Enable auto thread title generation                                                       | [#256](https://github.com/mjcr88/v0-community-app-project/issues/256) | P1       |  XS  | 2-4h       | 🟢 Complete |
 | M9  | BFF: Session timeout logic (15-min `lastActivityAt` in localStorage)                           | [#257](https://github.com/mjcr88/v0-community-app-project/issues/257) | P1       |  S  | 4-8h       | [conversation_continuity](file:///Users/mj/Developer/v0-community-app-project/docs/07-product/02_requirements/requirements_2026-03-28_rio_conversation_continuity.md) |
-| M10 | UI: Chat History list ("See previous chats" + pagination + thread titles)                        | [#260](https://github.com/mjcr88/v0-community-app-project/issues/260) | P2       |  M  | 1-2d       | [conversation_continuity](file:///Users/mj/Developer/v0-community-app-project/docs/07-product/02_requirements/requirements_2026-03-28_rio_conversation_continuity.md) |
-| M11 | UI: "Start new chat" button                                                                      | [#258](https://github.com/mjcr88/v0-community-app-project/issues/258) | P2       |  XS  | 2-4h       | [conversation_continuity](file:///Users/mj/Developer/v0-community-app-project/docs/07-product/02_requirements/requirements_2026-03-28_rio_conversation_continuity.md) |
-| M12 | UI: Privacy Settings page (`/dashboard/settings/privacy`) + GDPR controls                      | [#259](https://github.com/mjcr88/v0-community-app-project/issues/259) | P2       |  M  | 1-2d       | [privacy_settings](file:///Users/mj/Developer/v0-community-app-project/docs/07-product/02_requirements/requirements_2026-03-28_rio_privacy_settings.md) |
+| M10 | ~~UI: Chat History list ("See previous chats" + pagination + thread titles)~~ | [#260](https://github.com/mjcr88/v0-community-app-project/issues/260) | P2       |  M  | 1-2d       | **[Out of Scope]** |
+| M11 | ~~UI: "Start new chat" button~~                                                                      | [#258](https://github.com/mjcr88/v0-community-app-project/issues/258) | P2       |  XS  | 2-4h       | **[Out of Scope]** |
+| M12 | UI: Privacy Settings page (`/dashboard/settings/privacy`) + GDPR controls                      | [#259](https://github.com/mjcr88/v0-community-app-project/issues/259) | P2       |  M  | 1-2d       | 🟢 Complete |
+| M13 | Agent: Automated Historical Pruning (Redact History + Delete Recall)                           | [#259](https://github.com/mjcr88/v0-community-app-project/issues/259) | P1       |  S  | 4-8h       | 🟢 Complete |
 
 ---
 
@@ -134,14 +136,25 @@ Implementation is prioritized by architectural risk and foundational dependencie
     - *Goal*: Enable Mastra's persistence features with correct scoping.
 3.  **Phase 3: Logic & Personalization**: M4, M9.
     - *Goal*: Inject profile context and enforce session boundaries.
-4.  **Phase 4: User Experience**: M10, M11.
-    - *Goal*: Deliver manual thread management and history browsing.
+4.  **Phase 4: User Experience**: M12 (Privacy Settings)
+    - *Goal*: Deliver manual thread management and history browsing. [M10 and M11 Descoped]
 5.  **Phase 5: Final Hardening & Remediation**: Completed.
     - [x] Address CodeRabbit feedback (RLS, TokenLimiter, UI bugs).
     - [x] Harden `ThreadStore` with mandatory RLS initialization checks (Session scoping).
     - [x] Correct RLS documentation and schema window limits (50k tokens).
     - [x] Enable automated titling in Mastra memory configuration.
     - [x] Register `TokenLimiter` in agent `inputProcessors`.
+6.  **Phase 6: Privacy Hardening (Historical Pruning)**: 🟢 Complete.
+    - [x] Implement `redactHistoricalFact` utility for multi-table cleanup.
+    - [x] Automate redaction of `mastra_messages` (chat history).
+    - [x] Automate deletion of `memory_messages` (semantic recall chunks).
+    - [x] Integrated pruning trigger into Privacy UI delete actions.
+7.  **Phase 8: Security Remediation & Hardening**: 🟢 Complete.
+    - [x] Refactor `initRls` to prevent context leaks (pool release reset).
+    - [x] Implement PII masking across all agent logs (`maskId`).
+    - [x] Make historical pruning durable and regex-safe.
+    - [x] Implement "Fail-Closed" authorization on privacy settings.
+    - [x] Harden BFF routes with timeouts and generic error masking.
 
 ---
 
@@ -185,8 +198,11 @@ Implementation is prioritized by architectural risk and foundational dependencie
 - [x] AC2: If the resident reopens after 15 minutes, the chat opens fresh (new thread, empty message list).
 - [x] AC3: `lastActivityAt` is updated in localStorage on every sent message.
 
-### M10: Chat History UI
+---
 
+## 🛑 Descoped (Backlog)
+
+### M10: Chat History UI
 - [ ] AC1: A "See previous chats" button is visible in the chat panel.
 - [ ] AC2: Clicking it shows the 5 most recent threads with title, date, and last message preview.
 - [ ] AC3: A "Load 5 more" button fetches the next page of threads.
@@ -194,16 +210,16 @@ Implementation is prioritized by architectural risk and foundational dependencie
 - [ ] AC5: On mobile (Drawer), the list is accessible and scrollable within the modal.
 
 ### M11: New Chat Button
-
 - [ ] AC1: A "Start new chat" button creates a new thread and clears the message list.
 - [ ] AC2: Previous threads remain accessible via Chat History.
 
-### M12: Privacy Settings
+### M12: Privacy Settings [v]
 
-- [ ] AC1: All facts Río has learned about the resident are displayed in a list at `/dashboard/settings/privacy`.
-- [ ] AC2: Deleting a fact removes it from the Working Memory block and it does NOT appear in Río's subsequent responses.
-- [ ] AC3: "Delete all my Río memories" clears the Working Memory block entirely.
-- [ ] AC4: The page follows the existing settings page layout and design system.
+- [x] AC1: All facts Río has learned about the resident are displayed in a list at `/dashboard/settings/privacy`.
+- [x] AC2: Deleting a fact removes it from the Working Memory block and it does NOT appear in Río's subsequent responses.
+- [x] AC3: "Delete all my Río memories" clears the Working Memory block entirely.
+- [x] AC4: The page follows the existing settings page layout and design system.
+- [x] AC5: **Historical Pruning**: Deleting a fact triggers automated redaction of chat history and removal of semantic recall chunks.
 
 ---
 
@@ -255,11 +271,20 @@ Significant improvements to the speed and responsiveness of the dashboard.
 - **Parallel Data Fetching**: Priority feeds and community lists now load in parallel, reducing Time-to-First-Byte (TTFB).
 - **Hardened Image Optimization**: Resident profile pictures use a more robust delivery pipeline with automatic fallbacks.
 
-### 🛡️ Security & Reliability Fixes
-- **Thread Ownership**: Hardened thread-level isolation; users can only access their own chat history.
-- **Priority Feed Guarding**: Added robust error-handling and refined sorting logic (score > timestamp) for the dashboard.
-### 🔐 Phase 4: Security & Reliability Hardening
+### 🛡️ Security & Reliability Hardening (Phase 4 & 6)
 Final refinements based on the Sprint 12 audit.
 - **ID Masking**: All internal identifiers (`threadId`, `userId`) in agent logs are now masked via `maskId()` to prevent sensitive data exposure in server logs.
-- **Explicit Thread Enforcement**: The `/chat` endpoint now strictly requires threads to be created via `/threads/new`. This prevents the "silent auto-creation" regression and ensures robust session isolation.
-- **Verification**: All changes verified via `resource-isolation.test.ts` (3/3 Passed).
+- **Explicit Thread Enforcement**: The `/chat` endpoint now strictly requires threads to be created via `/threads/new`.
+- **Automated Historical Forgetting**: Implementing GDPR-compliant "forgetting" logic. When a user deletes a fact, the agent now redacts that fact from all past chat messages and removes it from vectorized semantic recall.
+- **Memory Sovereignty**: Hardened prompt instructions to prioritize the current "Working Memory" over historical artifacts.
+- **Tenant-Slug Authorization**: Implemented a mandatory server-side check ensuring the URL tenant slug matches the resident's actual tenant, preventing cross-tenant access to privacy controls.
+- **Consolidated API Logic**: Optimized search parameter handling in memory routes for improved reliability.
+- **Production-Ready Build**: All changes verified with a successful production-level build.
+
+### 🛡️ Security Remediation & Hardening (Phase 8)
+Final production-grade security and reliability refinements.
+- **RLS Session Reset**: Database connection pool now explicitly resets tenant/user context on release, eliminating the risk of cross-tenant data leakage in pooled environments.
+- **Log Sanitization**: Strict PII masking implemented for all sensitive identifiers (User, Thread, Tenant) in server-side logs.
+- **Durable Memory Pruning**: Fact deletion is now synchronous and waited for, ensuring chat history redaction and vector store removal are durable before client confirmation.
+- **Fail-Closed Privacy Guard**: Implemented robust server-side authorization on the privacy settings page that redirects unauthorized access or slug mismatches to login by default.
+- **API Performance & Safety**: Added `AbortController` timeouts to all agent interactions and genericized error responses to prevent internal system data leakage.

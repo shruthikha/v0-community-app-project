@@ -29,7 +29,18 @@ export async function updateBasicInfo(userId: string, data: {
         .eq("id", userId)
 
     if (error) throw new Error(error.message)
-    revalidatePath("/t/[slug]/dashboard", "layout")
+    const { data: userData } = await supabase
+        .from("users")
+        .select("tenant_id(slug)")
+        .eq("id", userId)
+        .single()
+    const slug = (userData?.tenant_id as any)?.slug
+
+    if (slug) {
+        revalidatePath(`/t/${slug}/dashboard`, "layout")
+    } else {
+        revalidatePath("/t/[slug]/dashboard", "layout")
+    }
 }
 
 export async function updateContactInfo(userId: string, data: {
@@ -51,7 +62,19 @@ export async function updateContactInfo(userId: string, data: {
         .eq("id", userId)
 
     if (error) throw new Error(error.message)
-    revalidatePath("/t/[slug]/dashboard", "layout")
+
+    const { data: userData } = await supabase
+        .from("users")
+        .select("tenant_id(slug)")
+        .eq("id", userId)
+        .single()
+    const slug = (userData?.tenant_id as any)?.slug
+
+    if (slug) {
+        revalidatePath(`/t/${slug}/dashboard`, "layout")
+    } else {
+        revalidatePath("/t/[slug]/dashboard", "layout")
+    }
 }
 
 export async function updateJourney(userId: string, data: {
@@ -73,7 +96,18 @@ export async function updateJourney(userId: string, data: {
         .eq("id", userId)
 
     if (error) throw new Error(error.message)
-    revalidatePath("/t/[slug]/dashboard", "layout")
+    const { data: userData } = await supabase
+        .from("users")
+        .select("tenant_id(slug)")
+        .eq("id", userId)
+        .single()
+    const slug = (userData?.tenant_id as any)?.slug
+
+    if (slug) {
+        revalidatePath(`/t/${slug}/dashboard`, "layout")
+    } else {
+        revalidatePath("/t/[slug]/dashboard", "layout")
+    }
 }
 
 export async function updateHousehold(userId: string, families: any[], pets: any[]) {
@@ -205,5 +239,17 @@ export async function completeOnboarding(userId: string) {
         .eq("id", userId)
 
     if (error) throw new Error(error.message)
-    revalidatePath("/t/[slug]/dashboard", "layout")
+
+    const { data: userData } = await supabase
+        .from("users")
+        .select("tenant_id(slug)")
+        .eq("id", userId)
+        .single()
+    const slug = (userData?.tenant_id as any)?.slug
+
+    if (slug) {
+        revalidatePath(`/t/${slug}/dashboard`, "layout")
+    } else {
+        revalidatePath("/t/[slug]/dashboard", "layout")
+    }
 }

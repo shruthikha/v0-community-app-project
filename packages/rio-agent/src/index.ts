@@ -10,16 +10,71 @@ import { supabaseAdmin } from "./lib/supabase";
 import { createHash } from 'node:crypto';
 import { ingestionWorkflow } from "./workflows/ingest";
 import { memory, storage, vectorStore } from "./lib/memory.js";
+import { parseWorkingMemory, removeFactByIndex, formatWorkingMemory, updateFactAtIndex } from "./lib/memory-utils";
+import { redactHistoricalFact } from "./lib/forget-utils";
+import { maskId } from "./lib/id-utils";
+import { Memory } from "@mastra/memory";
 
 /**
- * Masks a UUID or similar identifier for safe logging.
- * Example: "12345678-..." -> "1234...5678"
+ * M12: Centralized helper to retrieve working memory with SQL fallback.
+ * Ensures memories are not "stranded" if a thread context is missing.
  */
-export function maskId(id: string | null | undefined): string {
-    if (!id) return "null";
-    if (id.length < 8) return id;
-    return `${id.slice(0, 4)}...${id.slice(-4)}`;
+async function getResidentWorkingMemory(userId: string, memory: Memory, threadId?: string): Promise<string | null> {
+    let workingMemory: string | null = null;
+
+    try {
+        // Try Mastra first
+        if (threadId) {
+            workingMemory = await memory.getWorkingMemory({ threadId, resourceId: userId });
+        } else {
+            // resourceId-only retrieval (Mastra v1.x fallback)
+            workingMemory = await (memory as any).getWorkingMemory({ resourceId: userId });
+        }
+        if (workingMemory) {
+            console.log(`[RIO-AGENT] Working memory found via Mastra (thread: ${maskId(threadId) || 'resource-only'})`);
+        }
+    } catch (err) {
+        console.warn(`[RIO-AGENT] Mastra getWorkingMemory failed: ${(err as any).message}. Attempting SQL fallback...`);
+    }
+
+    // SQL Fallback: Essential for memories created/scoped without an active thread
+    if (!workingMemory) {
+        const dbResult = await pool.query(
+            `SELECT "workingMemory" FROM public.mastra_resources WHERE id = $1`,
+            [userId]
+        );
+        workingMemory = dbResult.rows[0]?.workingMemory || null;
+        if (workingMemory) console.log("[RIO-AGENT] Working memory retrieved via direct SQL fallback");
+    }
+
+    return workingMemory;
 }
+
+/**
+ * M12: Centralized helper to save working memory with SQL fallback.
+ * Updates Mastra (if threadId is present) and/or public.mastra_resources directly.
+ */
+async function saveResidentWorkingMemory(userId: string, workingMemory: string, memory: Memory, threadId?: string) {
+    if (threadId) {
+        await memory.updateWorkingMemory({
+            threadId,
+            resourceId: userId,
+            workingMemory
+        });
+        console.log(`[RIO-AGENT] Working memory updated via Mastra (thread: ${maskId(threadId)})`);
+    } else {
+        // Direct SQL Update: Ensures state persistence when no active thread exists.
+        // We sync updatedAt/updatedAtZ to maintain schema compatibility.
+        await pool.query(
+            `UPDATE public.mastra_resources 
+             SET "workingMemory" = $1, "updatedAt" = NOW(), "updatedAtZ" = NOW() 
+             WHERE id = $2`,
+            [workingMemory, userId]
+        );
+        console.log(`[RIO-AGENT] Working memory updated via direct SQL (resource-scoped)`);
+    }
+}
+
 
 /**
  * Generates a SHA-256 hash of a string.
@@ -75,8 +130,8 @@ export const app = new Mastra({
                 requiresAuth: true,
                 handler: async (c) => {
                     try {
-                        const userId = c.req.query("userId");
-                        const tenantId = c.req.query("tenantId");
+                        const userId = c.req.query("userId") || c.req.header("x-user-id");
+                        const tenantId = c.req.query("tenantId") || c.req.header("x-tenant-id");
 
                         if (!userId || !tenantId) return c.json({ error: "Missing userId or tenantId" }, 400);
 
@@ -85,6 +140,9 @@ export const app = new Mastra({
                             console.warn(`[RIO-AGENT] 401 Unauthorized on /threads/active`);
                             return c.json({ error: "Unauthorized" }, 401);
                         }
+
+                        // Initialize RLS context for the pooled connection
+                        await threadStore.initRls(tenantId, userId);
 
                         const result = await pool.query(
                             `SELECT id FROM mastra_threads 
@@ -153,6 +211,148 @@ export const app = new Mastra({
                         return c.json({ messages: limitedMessages });
                     } catch (error: any) {
                         console.error("[RIO-AGENT] Message hydration error:", error);
+                        return c.json({ error: error.message }, 500);
+                    }
+                },
+            }),
+            registerApiRoute("/memories", {
+                method: "GET",
+                requiresAuth: true,
+                handler: async (c) => {
+                    try {
+                        const authHeader = c.req.header("x-agent-key");
+                        if (authHeader !== rioAgentKey) return c.json({ error: "Unauthorized" }, 401);
+
+                        const userId = c.req.header("x-user-id");
+                        const tenantId = c.req.header("x-tenant-id");
+                        if (!userId || !tenantId) return c.json({ error: "Missing x-user-id or x-tenant-id in headers" }, 400);
+
+                        // Initialize RLS context for the pooled connection
+                        await threadStore.initRls(tenantId, userId);
+
+                        // M7/M12: Retrieve memories using the hardened helper with fallback
+                        const threads = await memory.listThreads({
+                            filter: { resourceId: userId },
+                            perPage: 1,
+                        });
+                        const threadId = threads.threads[0]?.id;
+
+                        const workingMemory = await getResidentWorkingMemory(userId, memory, threadId);
+                        const facts = parseWorkingMemory(workingMemory);
+                        console.log(`[RIO-AGENT] Returning ${facts.length} facts to UI for user ${maskId(userId)}`);
+
+                        return c.json({ facts, threadId: threadId || null });
+                    } catch (error: any) {
+                        console.error("[RIO-AGENT] Memory fetch error:", error);
+                        return c.json({ error: error.message }, 500);
+                    }
+                },
+            }),
+            registerApiRoute("/memories", {
+                method: "PUT",
+                requiresAuth: true,
+                handler: async (c) => {
+                    try {
+                        const authHeader = c.req.header("x-agent-key");
+                        if (authHeader !== rioAgentKey) return c.json({ error: "Unauthorized" }, 401);
+
+                        const userId = c.req.header("x-user-id");
+                        const tenantId = c.req.header("x-tenant-id");
+                        if (!userId || !tenantId) return c.json({ error: "Missing x-user-id or x-tenant-id in headers" }, 400);
+
+                        const { index, content } = await c.req.json();
+                        if (index === undefined || content === undefined) {
+                            return c.json({ error: "Missing index or content" }, 400);
+                        }
+
+                        // Initialize RLS context for the pooled connection
+                        await threadStore.initRls(tenantId, userId);
+
+                        const threads = await memory.listThreads({
+                            filter: { resourceId: userId },
+                            perPage: 1,
+                        });
+                        const threadId = threads.threads[0]?.id;
+
+                        const workingMemory = await getResidentWorkingMemory(userId, memory, threadId);
+                        const facts = parseWorkingMemory(workingMemory);
+                        console.log(`[RIO-AGENT] Updating memory for user ${maskId(userId)}. Current facts: ${facts.length}`);
+
+                        if (index >= 0 && index < facts.length) {
+                            const updatedFacts = updateFactAtIndex(facts, index, content);
+                            console.log(`[RIO-AGENT] Memory update successful for user ${maskId(userId)}. Resulting facts: ${updatedFacts.length}`);
+
+                            await saveResidentWorkingMemory(userId, formatWorkingMemory(updatedFacts), memory, threadId);
+
+                            return c.json({ status: "updated", index });
+                        }
+
+                        return c.json({ error: "Invalid index" }, 400);
+                    } catch (error: any) {
+                        console.error("[RIO-AGENT] Memory update error:", error);
+                        return c.json({ error: error.message }, 500);
+                    }
+                },
+            }),
+            registerApiRoute("/memories", {
+                method: "DELETE",
+                requiresAuth: true,
+                handler: async (c) => {
+                    try {
+                        const authHeader = c.req.header("x-agent-key");
+                        if (authHeader !== rioAgentKey) return c.json({ error: "Unauthorized" }, 401);
+
+                        const userId = c.req.header("x-user-id");
+                        const tenantId = c.req.header("x-tenant-id");
+                        if (!userId || !tenantId) return c.json({ error: "Missing x-user-id or x-tenant-id in headers" }, 400);
+
+                        // Initialize RLS context for the pooled connection
+                        await threadStore.initRls(tenantId, userId);
+
+                        const all = c.req.query("all") === "true";
+                        const indexString = c.req.query("index");
+
+                        const threads = await memory.listThreads({
+                            filter: { resourceId: userId },
+                            perPage: 1,
+                        });
+                        const threadId = threads.threads[0]?.id;
+
+                        if (all) {
+                            console.log(`[RIO-AGENT] Wiping all memories for user ${maskId(userId)} (thread: ${maskId(threadId) || 'none'})`);
+                            await saveResidentWorkingMemory(userId, "", memory, threadId);
+                            return c.json({ status: "cleared" });
+                        }
+
+                        if (indexString !== undefined) {
+                            const workingMemory = await getResidentWorkingMemory(userId, memory, threadId);
+                            const facts = parseWorkingMemory(workingMemory);
+                            const index = parseInt(indexString, 10);
+
+                            if (!isNaN(index) && index >= 0 && index < facts.length) {
+                                const factToDelete = facts[index];
+                                const updatedFacts = removeFactByIndex(facts, index);
+                                console.log(`[RIO-AGENT] Deleting memory index ${index} for user ${maskId(userId)}. Current facts: ${facts.length}`);
+
+                                await saveResidentWorkingMemory(userId, formatWorkingMemory(updatedFacts), memory, threadId);
+
+                                // M12: Durable historical pruning (Wait for completion)
+                                try {
+                                    console.log(`[RIO-AGENT] Pruning historical records for user ${maskId(userId)}...`);
+                                    await redactHistoricalFact(factToDelete, userId, tenantId);
+                                    console.log(`[RIO-AGENT] Historical pruning successful`);
+                                } catch (err) {
+                                    console.error(`[RIO-AGENT] Historical pruning failed for user ${maskId(userId)}:`, err);
+                                }
+
+                                return c.json({ status: "deleted", index });
+                            }
+                            return c.json({ error: "Invalid index" }, 400);
+                        }
+
+                        return c.json({ error: "Missing delete parameters" }, 400);
+                    } catch (error: any) {
+                        console.error("[RIO-AGENT] Memory deletion error:", error);
                         return c.json({ error: error.message }, 500);
                     }
                 },
@@ -364,6 +564,6 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
 });
 
 export const threadStore = new ThreadStore(memory);
-export { pool };
+export { pool, memory };
 export const mastra = app;
 export default app;

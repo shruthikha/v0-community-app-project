@@ -14,7 +14,7 @@ export function SettingsTabs({ tenantSlug }: SettingsTabsProps) {
   const currentTab = pathname.includes("/privacy") ? "privacy" : pathname.includes("/family") ? "family" : "profile"
 
   return (
-    <Tabs value={currentTab} className="w-full">
+    <Tabs value={currentTab} className="w-full" id="settings-navigation-tabs">
       <TabsList className="w-full bg-muted/30 p-1 rounded-full h-auto flex">
         <TabsTrigger
           value="profile"

@@ -72,6 +72,18 @@ export async function updatePrivacySettings(settings: {
         return { success: false, error: error.message }
     }
 
-    revalidatePath("/t/[slug]/dashboard/settings/privacy", "page")
+    // Fetch tenant slug for dynamic revalidation
+    const { data: userData } = await supabase
+        .from("users")
+        .select("tenant_id(slug)")
+        .eq("id", user.id)
+        .single()
+    const slug = (userData?.tenant_id as any)?.slug
+
+    if (slug) {
+        revalidatePath(`/t/${slug}/dashboard/settings/privacy`, "page")
+    } else {
+        revalidatePath("/t/[slug]/dashboard/settings/privacy", "page")
+    }
     return { success: true }
 }

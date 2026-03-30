@@ -213,7 +213,12 @@ export async function updateLocation(
   if (path) {
     revalidatePath(path)
   } else {
-    revalidatePath(`/t/[slug]/admin/map`, "page")
+    const { data: tenant } = await supabase.from("tenants").select("slug").eq("id", data.tenant_id).single()
+    if (tenant?.slug) {
+      revalidatePath(`/t/${tenant.slug}/admin/map`, "page")
+    } else {
+      revalidatePath("/", "layout")
+    }
   }
 }
 

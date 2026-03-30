@@ -30,6 +30,13 @@ Río utilizes Mastra's native memory orchestration, scoped via `resourceId = use
 2. **Working Memory**: A collection of learned facts about the resident (e.g., "likes tea", "preferred language is Spanish"). These are extracted by the LLM and persist across threads.
 3. **Semantic Recall**: Vectorized message history allowing the agent to perform similarity searches over past conversations to surface long-term context.
 
+## Historical Data Pruning (Privacy Enforcement)
+To prevent "Ghost Memories" and ensure GDPR compliance, Río implements an automated pruning mechanism when facts are deleted:
+
+1. **Working Memory**: The specific fact is removed from the YAML-like block in `mastra_threads.metadata` or the equivalent `workingMemory` persistent state.
+2. **Chat History Redaction**: The `redactHistoricalFact` utility performs a case-insensitive `regexp_replace` across all messages in `mastra_messages` belonging to the user. **Security**: User-provided facts are escaped for regex metacharacters before insertion to prevent POSIX injection.
+3. **Semantic Erasure**: Corresponding vectorized chunks are deleted from the `memory_messages` vector table. **Performance**: Queries use indexed `resource_id` and `resourceId` metadata for high-speed cleanup.
+
 ## Isolation Logic
 Tenant and User isolation is enforced via a combination of **Resource Scoping** and **PostgreSQL Row Level Security (RLS)**:
 1. The BFF ensures `resourceId` passed to Mastra is always the authenticated `userId`.
