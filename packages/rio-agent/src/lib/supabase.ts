@@ -110,6 +110,7 @@ export async function updateDocStatus(
 
     if (error) {
         console.error(`[SUPABASE] Failed to update status for ${documentId}:`, error);
+        throw error;
     }
 }
 

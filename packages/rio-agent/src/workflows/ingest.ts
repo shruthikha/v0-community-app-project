@@ -46,6 +46,8 @@ const fetchAssetStep = createStep({
 
         // 2. Fetch Source Metadata (Issue #234 Bridge)
         // We need to know if this is a PDF or a Page
+        // 2. Fetch Source Metadata (Issue #234 Bridge)
+        // We need to know if this is a PDF or a Page
         const { data: sourceDoc, error: sourceError } = await supabaseAdmin
             .from('documents')
             .select('document_type, content, file_url')

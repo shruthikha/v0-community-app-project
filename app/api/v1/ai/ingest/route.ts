@@ -16,7 +16,8 @@ import { errorResponse, successResponse } from '@/lib/api/response'
  */
 export async function POST(req: NextRequest) {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15s timeout for trigger
+    const INGEST_TIMEOUT_MS = 30000
+    const timeoutId = setTimeout(() => controller.abort(), INGEST_TIMEOUT_MS) // 30s timeout for trigger (Issue #263 Hotfix)
 
     try {
         // 1. Authenticate
@@ -203,7 +204,7 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         clearTimeout(timeoutId)
         if (error instanceof Error && error.name === 'AbortError') {
-            console.error('[API/v1/ai/ingest] Request to Railway timed out after 15s')
+            console.error(`[API/v1/ai/ingest] Request to Railway timed out after ${INGEST_TIMEOUT_MS / 1000}s`)
             return NextResponse.json(
                 { success: false, error: { message: 'Gateway Timeout connecting to AI agent', code: 'GATEWAY_TIMEOUT' } },
                 { status: 504 }

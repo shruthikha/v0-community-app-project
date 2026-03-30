@@ -29,20 +29,13 @@ export const pool = new Pool({
             ca: process.env.RIO_DATABASE_CA
         },
     max: 10,
+    statement_timeout: 60000, // 60s timeout to prevent aggressive server cancellations (Issue #263)
+    idle_in_transaction_session_timeout: 60000,
 });
 
-// M9: Security Hardening - Reset RLS context on every pool release
-// This prevents "context leaking" where one tenant's RLS session persists 
-// into a subsequent request that acquires the same connection.
-pool.on('release', (err: any, client: PoolClient) => {
-    // We use a dedicated client query here to ensure the session is reset 
-    // before the next consumer acquires it from the pool.
-    // Note: 'err' may be provided if the connection was released due to an error.
-    if (client) {
-        client.query("SELECT set_config('app.current_tenant', '', false), set_config('app.current_user', '', false)").catch((qErr: any) => {
-            console.error("[DB:RLS] Failed to reset context on release:", qErr);
-        });
-    }
+// Handle pool-level errors to prevent process crashes on unexpected connection terminations.
+pool.on('error', (err) => {
+    console.error('[DB:POOL] Unexpected error on idle client:', err);
 });
 
 export async function query(text: string, params?: any[]) {

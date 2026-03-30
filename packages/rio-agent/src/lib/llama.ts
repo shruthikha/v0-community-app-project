@@ -17,6 +17,8 @@ export async function parseToMarkdown(buffer: Buffer, fileName: string): Promise
 
     console.log(`[LLAMA] Initializing LlamaParse for file: ${fileName} (Size: ${buffer.length} bytes)`);
 
+    let timeoutHandle: any;
+
     try {
         const client = new LlamaParse({
             apiKey: llamaKey,
@@ -28,7 +30,17 @@ export async function parseToMarkdown(buffer: Buffer, fileName: string): Promise
         console.log(`[LLAMA] Calling parseFile for ${fileName}...`);
 
         const startTime = Date.now();
-        const result = await client.parseFile(blob);
+
+        // Safety: Add a 3-minute timeout to prevent LlamaParse from hanging the entire ingestion (Issue #263)
+        const TIMEOUT_MS = 3 * 60 * 1000;
+        const parsePromise = client.parseFile(blob);
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(() => reject(new Error(`LlamaParse timed out after 3 minutes for ${fileName}`)), TIMEOUT_MS);
+        });
+
+        const result = await Promise.race([parsePromise, timeoutPromise]);
+
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
         console.log(`[LLAMA] parseFile completed in ${duration}s`);
@@ -48,5 +60,9 @@ export async function parseToMarkdown(buffer: Buffer, fileName: string): Promise
     } catch (error) {
         console.error('[LLAMA] Parsing error:', error);
         throw error;
+    } finally {
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+        }
     }
 }

@@ -79,9 +79,17 @@ if (!vectorConnectionString && process.env.NODE_ENV === 'production') {
     throw new Error("RIO_DATABASE_URL required for PgVector in production");
 }
 
+const resolvedVectorConnectionString = vectorConnectionString ?? "postgresql://postgres:postgres@localhost:5432/postgres";
+const vectorUrl = new URL(resolvedVectorConnectionString);
+
+// Add sslmode=no-verify only when absent to avoid overriding explicit SSL policy or duplicate params
+if (!vectorUrl.searchParams.has("sslmode")) {
+    vectorUrl.searchParams.set("sslmode", "no-verify");
+}
+
 export const vectorStore = new PgVector({
     id: "rio-vector-store",
-    connectionString: vectorConnectionString || "",
+    connectionString: vectorUrl.toString(),
 });
 
 /**

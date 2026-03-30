@@ -9,6 +9,7 @@ import { RequestContext } from "@mastra/core/request-context";
 import { supabaseAdmin } from "./lib/supabase";
 import { createHash } from 'node:crypto';
 import { ingestionWorkflow } from "./workflows/ingest";
+import { updateDocStatus } from "./lib/supabase";
 import { memory, storage, vectorStore } from "./lib/memory.js";
 import { parseWorkingMemory, removeFactByIndex, formatWorkingMemory, updateFactAtIndex } from "./lib/memory-utils";
 import { redactHistoricalFact } from "./lib/forget-utils";
@@ -103,12 +104,6 @@ const ChatBodySchema = z.object({
     resourceId: z.string().nullish(),
 });
 
-function updateDocStatus(id: string, status: string, error?: string) {
-    return supabaseAdmin
-        .from("rio_documents")
-        .update({ status, error_message: error, updated_at: new Date().toISOString() })
-        .eq("id", id);
-}
 
 export const app = new Mastra({
     agents: { rioAgent },
@@ -546,11 +541,23 @@ ${config.sign_off_message ? `### Sign-off\nAlways end with: "${config.sign_off_m
 
                         const workflow = app.getWorkflow("ingest");
                         if (workflow) {
-                            const run = await workflow.createRun();
-                            // Await the run to ensure it starts correctly and we can catch early failures
-                            await run.start({
-                                inputData: { documentId },
-                            });
+                            // M12: Restore fire-and-forget pattern to prevent BFF timeouts (Issue #263 regression)
+                            // We trigger the workflow execution and return immediately.
+                            // CR Fix: Persist startup failures so the UI/Ingest-Status reflects the error.
+                            // Use 'void' to indicate an intentional unawaited promise.
+                            void (async () => {
+                                try {
+                                    const run = await workflow.createRun();
+                                    await run.start({ inputData: { documentId } });
+                                } catch (err: any) {
+                                    console.error(`[RIO-AGENT] Failed to start ingestion for ${documentId}:`, err);
+                                    try {
+                                        await updateDocStatus(documentId, 'error', `Startup failed: ${err.message || 'Unknown error'}`);
+                                    } catch (dbErr) {
+                                        console.error(`[RIO-AGENT] Critical: Failed to persist startup error for ${documentId}:`, dbErr);
+                                    }
+                                }
+                            })();
                         }
 
                         return c.json({ status: "queued" }, 202);

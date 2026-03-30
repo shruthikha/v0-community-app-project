@@ -136,58 +136,69 @@ export function RioChatSheet({
                 sessionStorage.setItem(`${key}-purged`, 'true');
             }
 
-            const local = localStorage.getItem(key);
             const lastActivity = localStorage.getItem(activityKey);
             const now = Date.now();
 
-            let currentThreadId = local;
-
-            // 1.5 Session Expiry Check (Sprint 12 M9)
-            if (currentThreadId && lastActivity) {
+            // 1.5 Session Expiry: If the session has timed out, force a brand-new
+            // thread. We set forceNewThread=true so the /threads/active lookup is
+            // skipped entirely — we never want to reuse an expired session's thread.
+            let forceNewThread = false;
+            if (lastActivity) {
                 const elapsed = now - parseInt(lastActivity, 10);
                 if (elapsed > SESSION_TIMEOUT_MS) {
-                    console.log(`[RIO-UI] Session expired (${Math.round(elapsed / 1000 / 60)}m inactive). Rotating thread.`);
-                    currentThreadId = null;
+                    console.log(`[RIO-UI] Session expired (${Math.round(elapsed / 1000 / 60)}m inactive). Forcing new thread.`);
                     localStorage.removeItem(key);
+                    forceNewThread = true;
                 }
             }
 
             setIsRefreshingThread(true);
+            let currentThreadId: string | null = null;
+
             try {
-                // 2. Fetch/Create ThreadId (Server-Authoritative M3)
-                if (!currentThreadId) {
-                    // Try fetch active
+                // 2. Resolve the thread ID — server-authoritative (M3).
+                // Skip /threads/active when forceNewThread is set (expired session) so
+                // we never reuse the previous session's thread after expiry.
+                if (!forceNewThread) {
                     const activeRes = await fetch(`/api/v1/ai/threads/active?userId=${encodeURIComponent(userId)}&tenantId=${encodeURIComponent(tenantId)}`);
                     if (activeRes.ok) {
                         const activeData = await activeRes.json();
                         if (activeData.threadId) {
                             currentThreadId = activeData.threadId;
+                            console.log(`[RIO-UI] Server confirmed active thread.`);
                         }
                     } else {
                         console.warn("[RIO-UI] Could not fetch active thread:", await activeRes.text());
                     }
+                }
 
-                    if (!currentThreadId) {
-                        // Create new via server
-                        const newRes = await fetch(`/api/v1/ai/threads/new`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ tenantId })
-                        });
-                        if (newRes.ok) {
-                            const newData = await newRes.json();
-                            currentThreadId = newData.threadId;
-                        } else {
-                            console.error("[RIO-UI] Failed to create new thread:", await newRes.text());
+                // 3. No valid server-side thread (or forced rotation) — create a fresh one.
+                if (!currentThreadId) {
+                    const newRes = await fetch(`/api/v1/ai/threads/new`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ tenantId })
+                    });
+                    if (newRes.ok) {
+                        const newData = await newRes.json();
+                        currentThreadId = newData.threadId;
+                        console.log(`[RIO-UI] Created new thread.`);
+                    } else {
+                        console.error("[RIO-UI] Failed to create new thread:", await newRes.text());
+                    }
+                }
+
+                if (currentThreadId) {
+                    // If the thread ID changed (rotation/expiry), clear the transcript
+                    // atomically before setting the new ID so no stale messages flash.
+                    setThreadId(prev => {
+                        if (prev && prev !== currentThreadId) {
+                            setMessages([]);
                         }
-                    }
-
-                    if (currentThreadId) {
-                        setThreadId(currentThreadId);
-                        localStorage.setItem(key, currentThreadId);
-                    }
-                } else {
-                    setThreadId(currentThreadId);
+                        return currentThreadId!;
+                    });
+                    // Update localStorage for session-timeout tracking only (not as source of truth).
+                    localStorage.setItem(key, currentThreadId);
                 }
 
                 // 3. Hydrate History (Server-Authoritative M2)
@@ -250,14 +261,16 @@ export function RioChatSheet({
         setInput(e.target.value)
     }
 
-    // Handle initialization with a query from the store
+    // Handle initialization with a query from the store.
+    // Guard on !isRefreshingThread && !!threadId so the initial send never fires
+    // while thread install/hydration is still in progress.
     React.useEffect(() => {
-        if (isOpen && initialQuery) {
+        if (isOpen && initialQuery && !isRefreshingThread && !!threadId) {
             sendMessage({ text: initialQuery })
             // Clear initial query so it doesn't re-trigger on re-renders
             openChat("")
         }
-    }, [isOpen, initialQuery, sendMessage, openChat])
+    }, [isOpen, initialQuery, isRefreshingThread, threadId, sendMessage, openChat])
 
     // Auto-scroll to bottom of messages
     const messagesEndRef = React.useRef<HTMLDivElement>(null)
@@ -265,11 +278,13 @@ export function RioChatSheet({
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [allMessages])
 
-    // Custom onSubmit to handle empty spaces
+    // Custom onSubmit to handle empty spaces.
+    // Guard on !isRefreshingThread && !!threadId so no messages can be sent
+    // while thread install/hydration is in progress.
     const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         const trimmed = (input || "").trim()
-        if (!trimmed || isLoading) return
+        if (!trimmed || isLoading || isRefreshingThread || !threadId) return
         sendMessage({ text: trimmed })
         setInput("")
     }
