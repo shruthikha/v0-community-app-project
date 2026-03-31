@@ -559,3 +559,12 @@ ssl: isLocal ? false : { rejectUnauthorized: false }
 1. **Validate on Open**: Never trust a cached `threadId`. On every UI mount/open, call a lightweight `/active` or `/verify` endpoint to ensure the thread still exists and is authorized.
 2. **Atomic Reset**: If validation fails or rotation is required, atomically clear the local message store *before* setting the new ID to prevent "Ghost History" (stale messages flashing).
 3. **Interaction Guards**: Use a `isRefreshing` state to disable inputs/send buttons until the server confirmation is complete.
+
+### [2026-03-31] Stable Transport & Reactive Payload (AI SDK)
+**Type**: Pattern / Gotcha
+**Context**: When using the AI SDK (`useChat`) in complex React components where the `threadId` is managed by async server-side validation.
+**Problem**: If `useMemo` for the `transport` object depends on `threadId`, a new transport instance is created on every state update. `useChat` may capture the *old* transport reference or its internal closure may become stale, leading to requests with an empty or outdated `threadId` (causing 403 Forbidden).
+**Fix**: **Stable Transport Pattern**.
+1. **Memoize Stably**: The `DefaultChatTransport` should have a stable reference (e.g., `useMemo` depending only on `tenantId/userId`, NOT `threadId`).
+2. **Direct Storage Lookup**: In the transport's `body` resolver function, read the `threadId` directly from the source of truth (e.g., `localStorage.getItem(key)`). This bypasses the asynchronous nature of React state and ensures the latest ID is always sent to the server.
+3. **Validation on Open**: Combine with server-side validation of the cached ID before allowing the first message.

@@ -160,6 +160,16 @@ Implementation is prioritized by architectural risk and foundational dependencie
     - [x] Add **Atomic UI Resets** on thread rotation.
     - [x] Enforce session creation for expired `lastActivityAt` states.
     - [x] Guard interactions with `isRefreshingThread` to prevent race conditions.
+9.  **Phase 9: Frontend Sync & Resynchronization Hardening**: 🟢 Complete.
+    - [x] Implement **Server-Authoritative Validation** in `RioChatSheet`.
+    - [x] Add **Atomic UI Resets** on thread rotation.
+    - [x] Enforce session creation for expired `lastActivityAt` states.
+    - [x] Guard interactions with `isRefreshingThread` to prevent race conditions.
+10. **Phase 10: Production-Ready Reactivity & Environment Hardening**: 🟢 Complete.
+    - [x] Implement **Stable Transport Pattern** in `DefaultChatTransport` to prevent closure staleness.
+    - [x] Use **Direct Storage Lookup** in dynamic body functions to bypass React state lag.
+    - [x] Centralize Agent URL resolution in `lib/ai/config.ts` to favor `RIO_RAILWAY_URL` in production.
+    - [x] Added request-level diagnostic logging to Agent for thread ownership transparency.
 
 ---
 

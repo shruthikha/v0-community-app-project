@@ -149,6 +149,8 @@ export function RioChatSheet({
                 if (elapsed > SESSION_TIMEOUT_MS) {
                     console.log(`[RIO-UI] Session expired (${Math.round(elapsed / 1000 / 60)}m inactive). Forcing new thread.`);
                     localStorage.removeItem(key);
+                    setThreadId("");
+                    setMessages([]);
                     localStorage.setItem(activityKey, now.toString()); // Refresh timestamp to prevent re-triggering
                     forceNewThread = true;
                 }
@@ -190,6 +192,8 @@ export function RioChatSheet({
                         const errorData = await newRes.json().catch(() => ({}));
                         const errorMsg = errorData.error || errorData.detail || "Failed to create thread";
                         console.error("[RIO-UI] Failed to create new thread:", errorMsg);
+                        setThreadId("");
+                        setMessages([]);
                         setSyncError(errorMsg);
                     }
                 }
@@ -231,6 +235,8 @@ export function RioChatSheet({
                 }
             } catch (err) {
                 console.error("[RIO-UI] Failed to sync/hydrate:", err);
+                setThreadId("");
+                setMessages([]);
                 setSyncError("Connection to Rio timed out or failed.");
             } finally {
                 setIsRefreshingThread(false);
@@ -242,16 +248,28 @@ export function RioChatSheet({
 
     const [input, setInput] = React.useState("")
 
+    const transport = React.useMemo(() => new DefaultChatTransport({
+        api: "/api/v1/ai/chat",
+        body: () => {
+            // Read directly from sources of truth to bypass state synchronization lag
+            const key = `rio-chat-thread-${tenantSlug}-${userId}`;
+            const storedThreadId = typeof window !== 'undefined' ? localStorage.getItem(key) : "";
+            return {
+                tenantId,
+                threadId: storedThreadId || "",
+            };
+        },
+    }), [tenantId, tenantSlug, userId]);
+
     const { messages = [], sendMessage, status, error, setMessages } = useChat({
         id: "rio-chat",
-        transport: new DefaultChatTransport({
-            api: "/api/v1/ai/chat",
-            body: {
-                tenantId,
-                threadId
-            }
-        })
-    })
+        transport,
+        onFinish: () => {
+            // Update activity timestamp in localStorage to keep session alive
+            const activityKey = `rio-chat-activity-${tenantSlug}-${userId}`;
+            localStorage.setItem(activityKey, Date.now().toString());
+        },
+    });
 
     // M2: Final combined message set
     const allMessages = messages;
@@ -292,7 +310,7 @@ export function RioChatSheet({
     const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         const trimmed = (input || "").trim()
-        if (!trimmed || isLoading || isRefreshingThread || !threadId) return
+        if (!trimmed || isLoading || isRefreshingThread || !threadId || !!syncError) return
         sendMessage({ text: trimmed })
         setInput("")
     }

@@ -24,4 +24,14 @@ export function getAgentBaseUrl(): string {
     );
 }
 
-export const RIO_AGENT_KEY = process.env.RIO_AGENT_KEY || "";
+function requireAgentKey(): string {
+    const key = process.env.RIO_AGENT_KEY;
+    if (!key) {
+        throw new Error(
+            "[RIO-CONFIG] RIO_AGENT_KEY is not configured. Please set RIO_AGENT_KEY in your environment variables."
+        );
+    }
+    return key;
+}
+
+export const RIO_AGENT_KEY = requireAgentKey();

@@ -379,6 +379,8 @@ export const app = new Mastra({
                         const userId = c.req.header("x-user-id");
                         const effectiveThreadId = (threadId || resourceId) as string;
 
+                        console.log(`[RIO-AGENT] Processing chat for tenant: ${maskId(tenantId as string)}, user: ${maskId(userId as string)}, thread: ${maskId(effectiveThreadId)}`);
+
                         if (!effectiveThreadId) {
                             console.warn("[RIO-AGENT] 400 Bad Request: Missing threadId or resourceId");
                             return c.json({ error: "threadId or resourceId is required" }, 400);
