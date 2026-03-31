@@ -136,19 +136,31 @@ export const app = new Mastra({
                             return c.json({ error: "Unauthorized" }, 401);
                         }
 
-                        // Initialize RLS context for the pooled connection
-                        await threadStore.initRls(tenantId, userId);
+                        // M12 Debug: REFACTORED to use a single client for RLS consistency.
+                        // Raw pool.query calls use different clients from the pool.
+                        const client = await pool.connect();
+                        try {
+                            const queryTextRLS = `SELECT set_config('app.current_tenant', $1, false)${userId ? ", set_config('app.current_user', $2, false)" : ""}`;
+                            const paramsRLS = userId ? [tenantId, userId] : [tenantId];
+                            await client.query(queryTextRLS, paramsRLS);
 
-                        const result = await pool.query(
-                            `SELECT id FROM mastra_threads 
-                             WHERE metadata->>'userId' = $1 
-                             AND metadata->>'tenantId' = $2
-                             ORDER BY updated_at DESC LIMIT 1`,
-                            [userId, tenantId]
-                        );
+                            const result = await client.query(
+                                `SELECT id, "updatedAt" FROM mastra_threads 
+                                 WHERE metadata->>'userId' = $1 
+                                 AND metadata->>'tenantId' = $2
+                                 ORDER BY "updatedAt" DESC LIMIT 1`,
+                                [userId, tenantId]
+                            );
 
-                        return c.json({ threadId: result.rows[0]?.id || null });
-                    } catch (error) {
+                            const row = result.rows[0];
+                            return c.json({
+                                threadId: row?.id || null,
+                                updatedAt: row?.updatedAt || null,
+                            });
+                        } finally {
+                            client.release();
+                        }
+                    } catch (error: any) {
                         console.error("[RIO-AGENT] Active thread lookup error:", error);
                         return c.json({ error: "Internal Server Error" }, 500);
                     }
@@ -169,15 +181,17 @@ export const app = new Mastra({
 
                         const threadId = `thread-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-                        await threadStore.createThread({
+                        const result = await threadStore.createThread({
                             threadId,
                             resourceId: userId, // M1: userId is the resourceId
                             tenantId,
                             userId,
                         });
 
-                        console.log(`[RIO-AGENT] Server-driven thread created: ${maskId(threadId)} for user ${maskId(userId)}`);
-                        return c.json({ threadId });
+                        // M12 Debug: Return the namespaced ID (canonical)
+                        const namespacedId = threadStore.generateTenantThreadId(tenantId, threadId);
+                        console.log(`[RIO-AGENT] Server-driven thread created: ${maskId(namespacedId)} for user ${maskId(userId)}`);
+                        return c.json({ threadId: namespacedId });
                     } catch (error: any) {
                         console.error("[RIO-AGENT] Thread creation error:", error);
                         return c.json({ error: error.message }, 500);

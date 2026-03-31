@@ -65,8 +65,8 @@ const InlineCitation = ({ index, annotation, tenantSlug }: { index: number, anno
     )
 }
 
-const formatMessage = (content: string, annotations: any[] = [], tenantSlug: string) => {
-    if (!content) return null;
+const formatMessage = (content: any, annotations: any[] = [], tenantSlug: string) => {
+    if (!content || typeof content !== 'string') return null;
 
     // Pattern for [1], [2], [1, 2], [1, 2, 3] etc.
     // We match the whole bracketed group including commas and spaces
@@ -97,7 +97,7 @@ const formatMessage = (content: string, annotations: any[] = [], tenantSlug: str
     });
 };
 
-const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes (M9)
+const SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour — server-validated (M9)
 
 export function RioChatSheet({
     tenantId,
@@ -115,69 +115,62 @@ export function RioChatSheet({
     const isMobile = useIsMobile()
     const { isOpen, closeChat, initialQuery, openChat } = useRioChat()
 
-    const [threadId, setThreadId] = React.useState<string>("");
+    const [threadId, setThreadId] = React.useState<string>(() => {
+        if (typeof window === 'undefined') return "";
+        const key = `rio-chat-thread-${tenantSlug}-${userId}`;
+        return localStorage.getItem(key) || "";
+    });
     const [initialMessages, setInitialMessages] = React.useState<UIMessage[]>([]);
     const [isRefreshingThread, setIsRefreshingThread] = React.useState(false);
     const [syncError, setSyncError] = React.useState<string | null>(null);
 
-    // Sync Thread ID and Hydrate Messages (Sprint 12 M1-M3)
+    // Sync Thread ID and Hydrate Messages (Sprint 12 M1-M3, revised M9)
     React.useEffect(() => {
         if (!isOpen || !userId || !tenantId) return;
 
         const syncAndHydrate = async () => {
             const key = `rio-chat-thread-${tenantSlug}-${userId}`;
-            const activityKey = `rio-chat-activity-${tenantSlug}-${userId}`;
-
-            // 1. Legacy Purge: Force server-authoritative state for Sprint 12 transition
-            const hasPurged = sessionStorage.getItem(`${key}-purged`);
-            if (!hasPurged) {
-                console.log("[RIO-UI] Purging legacy localStorage thread ID for Sprint 12 transition");
-                localStorage.removeItem(key);
-                localStorage.removeItem(activityKey);
-                sessionStorage.setItem(`${key}-purged`, 'true');
-            }
-
-            const lastActivity = localStorage.getItem(activityKey);
-            const now = Date.now();
-
-            // 1.5 Session Expiry: If the session has timed out, force a brand-new
-            // thread. We set forceNewThread=true so the /threads/active lookup is
-            // skipped entirely — we never want to reuse an expired session's thread.
-            let forceNewThread = false;
-            if (lastActivity) {
-                const elapsed = now - parseInt(lastActivity, 10);
-                if (elapsed > SESSION_TIMEOUT_MS) {
-                    console.log(`[RIO-UI] Session expired (${Math.round(elapsed / 1000 / 60)}m inactive). Forcing new thread.`);
-                    localStorage.removeItem(key);
-                    setThreadId("");
-                    setMessages([]);
-                    localStorage.setItem(activityKey, now.toString()); // Refresh timestamp to prevent re-triggering
-                    forceNewThread = true;
-                }
-            }
+            const prevThreadId = threadId; // Capture current state for comparison after async work
 
             setIsRefreshingThread(true);
             setSyncError(null);
             let currentThreadId: string | null = null;
 
             try {
-                // 2. Resolve the thread ID — server-authoritative (M3).
-                // Skip /threads/active when forceNewThread is set (expired session) so
-                // we never reuse the previous session's thread after expiry.
-                if (!forceNewThread) {
-                    const activeRes = await fetch(`/api/v1/ai/threads/active?userId=${encodeURIComponent(userId)}&tenantId=${encodeURIComponent(tenantId)}`);
-                    if (activeRes.ok) {
-                        const activeData = await activeRes.json();
-                        if (activeData.threadId) {
+                // 1. Check server for the user's most recent thread.
+                //    The server returns { threadId, updatedAt } so we can make an
+                //    accurate expiry decision without relying on localStorage timestamps.
+                const activeRes = await fetch(
+                    `/api/v1/ai/threads/active?userId=${encodeURIComponent(userId)}&tenantId=${encodeURIComponent(tenantId)}`
+                );
+                if (activeRes.ok) {
+                    const activeData = await activeRes.json();
+                    console.log("[RIO-UI] activeData response:", activeData);
+                    if (activeData.threadId && activeData.updatedAt) {
+                        const lastActive = new Date(activeData.updatedAt).getTime();
+                        const elapsed = Number.isNaN(lastActive) ? 0 : Date.now() - lastActive;
+
+                        if (!Number.isNaN(lastActive) && elapsed > SESSION_TIMEOUT_MS) {
+                            // Thread is stale — rotate.
+                            console.log(`[RIO-UI] Thread expired (${Math.round(elapsed / 1000 / 60)}m ago). Creating new thread.`);
+                        } else {
+                            // Within the 1-hour window (or invalid timestamp — safe fallback) — resume.
                             currentThreadId = activeData.threadId;
-                            console.log(`[RIO-UI] Server confirmed active thread.`);
+                            const label = Number.isNaN(lastActive) ? "unknown age" : `${Math.round(elapsed / 1000 / 60)}m ago`;
+                            console.log(`[RIO-UI] Resuming active thread (${label}).`);
                         }
-                    } else {
-                        console.warn("[RIO-UI] Could not fetch active thread:", await activeRes.text());
+                    } else if (activeData.threadId) {
+                        // Fallback: server returned a threadId but no updatedAt (shouldn't
+                        // happen after this deploy, but safe to resume rather than drop).
+                        currentThreadId = activeData.threadId;
+                        console.log(`[RIO-UI] Resuming thread (no updatedAt — treating as active).`);
                     }
+                    // If server returned { threadId: null }, fall through to create a new one.
+                } else {
+                    console.warn("[RIO-UI] Could not fetch active thread:", await activeRes.text());
                 }
 
-                // 3. No valid server-side thread (or forced rotation) — create a fresh one.
+                // 2. No valid/active server-side thread — create a fresh one.
                 if (!currentThreadId) {
                     const newRes = await fetch(`/api/v1/ai/threads/new`, {
                         method: "POST",
@@ -199,17 +192,20 @@ export function RioChatSheet({
                 }
 
                 if (currentThreadId) {
-                    // If the thread ID changed (rotation/expiry), clear the transcript
-                    // atomically before setting the new ID so no stale messages flash.
-                    setThreadId(prev => {
-                        if (prev && prev !== currentThreadId) {
-                            setMessages([]);
-                        }
-                        return currentThreadId!;
-                    });
-                    // Update localStorage for session-timeout tracking only (not as source of truth).
+                    // Atomically clear transcript when rotating to a different thread.
+                    // Defensive check: only clear if they are actually DIFFERENT threads,
+                    // not just different formats of the same ID (e.g. namespaced vs un-namespaced).
+                    const isNewThread = currentThreadId !== prevThreadId &&
+                        !currentThreadId.endsWith(`:${prevThreadId}`) &&
+                        !prevThreadId.endsWith(`:${currentThreadId}`);
+
+                    if (isNewThread && prevThreadId !== "") {
+                        console.log(`[RIO-UI] Thread mismatch detected. Clearing messages. (${prevThreadId} -> ${currentThreadId})`);
+                        setMessages([]);
+                    }
+                    setThreadId(currentThreadId);
+                    // Keep localStorage in sync for fast-path debugging only.
                     localStorage.setItem(key, currentThreadId);
-                    localStorage.setItem(activityKey, Date.now().toString());
                 }
 
                 // 3. Hydrate History (Server-Authoritative M2)
@@ -264,23 +260,11 @@ export function RioChatSheet({
     const { messages = [], sendMessage, status, error, setMessages } = useChat({
         id: "rio-chat",
         transport,
-        onFinish: () => {
-            // Update activity timestamp in localStorage to keep session alive
-            const activityKey = `rio-chat-activity-${tenantSlug}-${userId}`;
-            localStorage.setItem(activityKey, Date.now().toString());
-        },
     });
 
     // M2: Final combined message set
     const allMessages = messages;
 
-    // Activity Tracking (Sprint 12 M9): Update lastActivityAt on every interaction
-    React.useEffect(() => {
-        if (allMessages.length > 0) {
-            const activityKey = `rio-chat-activity-${tenantSlug}-${userId}`;
-            localStorage.setItem(activityKey, Date.now().toString());
-        }
-    }, [allMessages.length, tenantSlug, userId]);
     const isLoading = status === 'streaming' || status === 'submitted'
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -350,7 +334,8 @@ export function RioChatSheet({
                     const citations = m.parts?.find((p: any) => p.type === 'data-citations')?.data || m.annotations || [];
 
                     // Usage Filtering Logic: Find which citation indices are actually used in the text
-                    const messageText = m.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ') || m.content || "";
+                    const rawContent = m.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ') || m.content || "";
+                    const messageText = typeof rawContent === 'string' ? rawContent : "";
                     const usedIndices = new Set<number>();
                     const citationMatches = messageText.matchAll(/\[([\d,\s]+)\]/g);
                     for (const match of citationMatches) {
