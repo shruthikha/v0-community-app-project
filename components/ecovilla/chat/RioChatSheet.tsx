@@ -118,6 +118,7 @@ export function RioChatSheet({
     const [threadId, setThreadId] = React.useState<string>("");
     const [initialMessages, setInitialMessages] = React.useState<UIMessage[]>([]);
     const [isRefreshingThread, setIsRefreshingThread] = React.useState(false);
+    const [syncError, setSyncError] = React.useState<string | null>(null);
 
     // Sync Thread ID and Hydrate Messages (Sprint 12 M1-M3)
     React.useEffect(() => {
@@ -148,11 +149,13 @@ export function RioChatSheet({
                 if (elapsed > SESSION_TIMEOUT_MS) {
                     console.log(`[RIO-UI] Session expired (${Math.round(elapsed / 1000 / 60)}m inactive). Forcing new thread.`);
                     localStorage.removeItem(key);
+                    localStorage.setItem(activityKey, now.toString()); // Refresh timestamp to prevent re-triggering
                     forceNewThread = true;
                 }
             }
 
             setIsRefreshingThread(true);
+            setSyncError(null);
             let currentThreadId: string | null = null;
 
             try {
@@ -184,7 +187,10 @@ export function RioChatSheet({
                         currentThreadId = newData.threadId;
                         console.log(`[RIO-UI] Created new thread.`);
                     } else {
-                        console.error("[RIO-UI] Failed to create new thread:", await newRes.text());
+                        const errorData = await newRes.json().catch(() => ({}));
+                        const errorMsg = errorData.error || errorData.detail || "Failed to create thread";
+                        console.error("[RIO-UI] Failed to create new thread:", errorMsg);
+                        setSyncError(errorMsg);
                     }
                 }
 
@@ -199,6 +205,7 @@ export function RioChatSheet({
                     });
                     // Update localStorage for session-timeout tracking only (not as source of truth).
                     localStorage.setItem(key, currentThreadId);
+                    localStorage.setItem(activityKey, Date.now().toString());
                 }
 
                 // 3. Hydrate History (Server-Authoritative M2)
@@ -224,6 +231,7 @@ export function RioChatSheet({
                 }
             } catch (err) {
                 console.error("[RIO-UI] Failed to sync/hydrate:", err);
+                setSyncError("Connection to Rio timed out or failed.");
             } finally {
                 setIsRefreshingThread(false);
             }
@@ -298,7 +306,24 @@ export function RioChatSheet({
                             {/* @ts-ignore */}
                             <RioImage pose="general" size="lg" />
                         </div>
-                        <p className="text-sm px-4 max-w-xs mx-auto">Hello! I'm Rio. I can help answer questions about your community, facilities, and rules.</p>
+                        {syncError ? (
+                            <div className="space-y-2">
+                                <p className="text-sm font-semibold text-red-500">Connection Error</p>
+                                <p className="text-xs px-4 max-w-xs mx-auto text-slate-400">{syncError}</p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => window.location.reload()}
+                                    className="mt-4 h-7 text-[10px] border-slate-200"
+                                >
+                                    Retry Connection
+                                </Button>
+                            </div>
+                        ) : (
+                            <p className="text-sm px-4 max-w-xs mx-auto">
+                                {!threadId && isRefreshingThread ? "Initializing Rio..." : "Hello! I'm Rio. I can help answer questions about your community, facilities, and rules."}
+                            </p>
+                        )}
                     </div>
                 )}
 

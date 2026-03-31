@@ -38,7 +38,7 @@ Río provides a dedicated chat interface for residents:
 - **Components**: `RioChatSheet` (responsive Sheet/Drawer) and `RioWelcomeCard` (dashboard entry).
 - **State Management**: `use-rio-chat` Zustand store for global sheet visibility.
 - **Hydration**: (Sprint 12) Support for **Message Hydration** upon opening the sheet. The BFF proxies the last 10 messages from Mastra's `listMessages` to prevent an empty state on session resume.
-- **Thread Management**: (Sprint 12) **Server-Authoritative Threads**. Thread IDs are generated via `POST /api/v1/ai/threads/new`. The `/chat` endpoint now strictly requires an existing thread and will return a `403 Forbidden` if the thread does not exist or is not owned by the requesting user. Metadata (`tenantId`, `userId`) is associated on creation.
+- **Thread Management**: (Sprint 12) **Server-Authoritative Threads**. Thread IDs are generated via `POST /api/v1/ai/threads/new`. The chat client validates the current `threadId` against the server's `/active` endpoint on every session resume. This prevents `403 Forbidden` errors from stale local caches. If validation fails or the session has expired (15 min), the UI atomically resets the message transcript and creates a new thread.
 - **Interactive Citations**: RAG sources are rendered as interactive Popovers.
 
 ### 4. Agent Instruction Logic (M4)

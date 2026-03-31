@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
-const RIO_AGENT_URL = process.env.RIO_AGENT_URL || "http://localhost:3001";
-const RIO_AGENT_KEY = process.env.RIO_AGENT_KEY;
+import { getAgentBaseUrl, RIO_AGENT_KEY } from "@/lib/ai/config";
 
 /**
  * POST /api/v1/ai/threads/new
@@ -41,7 +40,8 @@ export async function POST(req: NextRequest) {
         }
 
         // Forward to Railway
-        const response = await fetch(`${RIO_AGENT_URL}/threads/new`, {
+        const agentBaseUrl = getAgentBaseUrl();
+        const response = await fetch(`${agentBaseUrl}/threads/new`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

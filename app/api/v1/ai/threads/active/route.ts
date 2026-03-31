@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const RIO_AGENT_URL = process.env.RIO_AGENT_URL || "http://localhost:3001";
-const RIO_AGENT_KEY = process.env.RIO_AGENT_KEY;
+import { getAgentBaseUrl, RIO_AGENT_KEY } from "@/lib/ai/config";
 
 /**
  * GET /api/v1/ai/threads/active
@@ -25,8 +24,9 @@ export async function GET(request: Request) {
         }
 
         // Proxy to Rio Agent on Railway/Local
+        const agentBaseUrl = getAgentBaseUrl();
         const response = await fetch(
-            `${RIO_AGENT_URL}/threads/active?userId=${user.id}&tenantId=${tenantId}`,
+            `${agentBaseUrl}/threads/active?userId=${user.id}&tenantId=${tenantId}`,
             {
                 headers: {
                     "x-agent-key": RIO_AGENT_KEY || "",

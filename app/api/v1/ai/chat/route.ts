@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { errorResponse } from '@/lib/api/response'
+import { getAgentBaseUrl, RIO_AGENT_KEY } from "@/lib/ai/config";
 
 /**
  * POST /api/v1/ai/chat
@@ -123,7 +124,7 @@ Skills: ${skills.length > 0 ? skills.join(', ') : 'None listed'}`
         const idempotencyKey = body.idempotencyKey || `chat-${user.id}-${Date.now()}`
 
         // 2. Forward to Railway with Tiered Timeout and Retry
-        const railwayUrl = process.env.RIO_RAILWAY_URL || process.env.RIO_AGENT_URL || 'http://localhost:3001'
+        const railwayUrl = getAgentBaseUrl();
 
         let response: Response | null = null
         let attempts = 0
@@ -150,7 +151,7 @@ Skills: ${skills.length > 0 ? skills.join(', ') : 'None listed'}`
                         'x-user-id': user.id,
                         'x-rag-enabled': String(isRagEnabled),
                         'x-resident-context': Buffer.from(residentContext).toString('base64'),
-                        'x-agent-key': process.env.RIO_AGENT_KEY || '',
+                        'x-agent-key': RIO_AGENT_KEY,
                         'x-idempotency-key': idempotencyKey
                     },
                     body: JSON.stringify({

@@ -551,3 +551,11 @@ ssl: isLocal ? false : { rejectUnauthorized: false }
 **Type**: Pattern
 **Context**: Accessibility Audit. Action buttons that appear on `:hover` (group-hover) were unreachable on mobile or for keyboard users.
 **Fix**: Use `focus-within:opacity-100` alongside `group-hover:opacity-100`. This ensures that tabbing into the hidden element makes it visible and interactive.
+### [2026-03-30] Stale UI Thread Identity (403 Forbidden)
+**Type**: Security / UX Sync
+**Context**: Complex AI features where the `threadId` is persisted in `localStorage` for session continuity, but the backend database might be pruned or reset independently.
+**The Gotcha**: The frontend opens with a cached `threadId`. It attempts to send a message or fetch history. The backend (correctly) returns `403 Forbidden` or `404 Not Found` because the thread record is gone or owned by a previous session. The UI hangs or shows an unrecoverable error.
+**Pattern**: **Server-Authoritative Validation**.
+1. **Validate on Open**: Never trust a cached `threadId`. On every UI mount/open, call a lightweight `/active` or `/verify` endpoint to ensure the thread still exists and is authorized.
+2. **Atomic Reset**: If validation fails or rotation is required, atomically clear the local message store *before* setting the new ID to prevent "Ghost History" (stale messages flashing).
+3. **Interaction Guards**: Use a `isRefreshing` state to disable inputs/send buttons until the server confirmation is complete.

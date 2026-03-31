@@ -155,6 +155,11 @@ Implementation is prioritized by architectural risk and foundational dependencie
     - [x] Make historical pruning durable and regex-safe.
     - [x] Implement "Fail-Closed" authorization on privacy settings.
     - [x] Harden BFF routes with timeouts and generic error masking.
+8.  **Phase 9: Frontend Sync & Resynchronization Hardening**: 🟢 Complete.
+    - [x] Implement **Server-Authoritative Validation** in `RioChatSheet`.
+    - [x] Add **Atomic UI Resets** on thread rotation.
+    - [x] Enforce session creation for expired `lastActivityAt` states.
+    - [x] Guard interactions with `isRefreshingThread` to prevent race conditions.
 
 ---
 
@@ -288,3 +293,10 @@ Final production-grade security and reliability refinements.
 - **Durable Memory Pruning**: Fact deletion is now synchronous and waited for, ensuring chat history redaction and vector store removal are durable before client confirmation.
 - **Fail-Closed Privacy Guard**: Implemented robust server-side authorization on the privacy settings page that redirects unauthorized access or slug mismatches to login by default.
 - **API Performance & Safety**: Added `AbortController` timeouts to all agent interactions and genericized error responses to prevent internal system data leakage.
+
+### 🛡️ Frontend Sync & Resynchronization Hardening (Phase 9)
+Final remediation for multi-state synchronization issues.
+- **Server-Authoritative Validation**: The chat UI no longer trusts `localStorage` for thread existence; it validates against `/api/v1/ai/threads/active` on every open to prevent `403 Forbidden` errors from stale caches.
+- **Atomic UI Resets**: Implemented atomic state clearing on thread rotation to eliminate "Ghost History" flashes.
+- **Interaction Gating**: Added `isRefreshingThread` guards to prevent message submission during high-latency thread hydration.
+- **Expiry Path Hardening**: Forced brand-new thread creation immediately upon 15-minute inactivity detection, skipping the active-thread lookup.

@@ -109,8 +109,11 @@ export async function updateDocStatus(
         .eq('id', documentId);
 
     if (error) {
-        console.error(`[SUPABASE] Failed to update status for ${documentId}:`, error);
-        throw error;
+        const msg = `Failed to update status for ${documentId}: ${error.message}`;
+        console.error(`[SUPABASE] ${msg}`, error);
+        const err = new Error(msg);
+        Object.assign(err, { supabaseError: error });
+        throw err;
     }
 }
 
