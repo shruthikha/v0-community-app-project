@@ -477,6 +477,10 @@ export function ExchangeListingDetailModal({
                     </>
                   )}
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => setIsHistoryModalOpen(true)}>
+                  <History className="h-4 w-4 mr-2" />
+                  View History
+                </Button>
                 <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete

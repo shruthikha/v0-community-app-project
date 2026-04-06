@@ -27,7 +27,7 @@ Río's memory is composed of three complementary layers, each serving a distinct
 
 ### Session Model
 
-A "session" is defined by 15 minutes of inactivity. When the resident re-opens the chat after the session window has expired (or manually starts a new chat), a new thread is created. Working Memory and Semantic Recall bridge the continuity gap between sessions transparently — the resident never loses context, but the message list in the UI resets cleanly.
+A "session" is defined by 1 hour of inactivity. When the resident re-opens the chat after the session window has expired (or manually starts a new chat), a new thread is created. Working Memory and Semantic Recall bridge the continuity gap between sessions transparently — the resident never loses context, but the message list in the UI resets cleanly.
 
 ---
 
@@ -35,8 +35,8 @@ A "session" is defined by 15 minutes of inactivity. When the resident re-opens t
 
 ### Resident Experience
 
-- **Within a session (< 15 min)**: Conversation history is visible in the chat panel exactly as left.
-- **New session (> 15 min or manual)**: Chat opens fresh. Río greets the resident by name (from Working Memory) and may surface relevant past topics if applicable.
+- **Within a session (< 1 hour)**: Conversation history is visible in the chat panel exactly as left.
+- **New session (> 1 hour or manual)**: Chat opens fresh. Río greets the resident by name (from Working Memory) and may surface relevant past topics if applicable.
 - **Chat History**: A "See previous chats" button opens a smart list of past conversation threads — the 5 most recent, with a "Load 5 more" pagination button. Each thread is auto-titled by Mastra.
 - **New Chat**: An explicit "Start new chat" button creates a fresh thread immediately.
 - **Privacy Settings**: A new settings page at `/t/[slug]/dashboard/settings/privacy` lets residents view all facts Río has learned about them, delete individual facts, or wipe everything.
@@ -59,7 +59,7 @@ The BFF fetches the resident's profile on every chat request and injects it into
 | M6  | Agent: Configure Mastra Memory Processor (`TokenLimiter` safety net)                           | [#254](https://github.com/mjcr88/v0-community-app-project/issues/254) | P1       |  XS  | 2-4h       | 🟢 Complete |
 | M7  | Agent: Wire `userId` as `resourceId` for working memory + semantic recall scoping            | [#255](https://github.com/mjcr88/v0-community-app-project/issues/255) | P1       |  XS  | 2-4h       | 🟢 Complete |
 | M8  | Agent: Enable auto thread title generation                                                       | [#256](https://github.com/mjcr88/v0-community-app-project/issues/256) | P1       |  XS  | 2-4h       | 🟢 Complete |
-| M9  | BFF: Session timeout logic (15-min `lastActivityAt` in localStorage)                           | [#257](https://github.com/mjcr88/v0-community-app-project/issues/257) | P1       |  S  | 4-8h       | [conversation_continuity](file:///Users/mj/Developer/v0-community-app-project/docs/07-product/02_requirements/requirements_2026-03-28_rio_conversation_continuity.md) |
+| M9  | BFF: Session timeout logic (1-hour `updatedAt` server check)                           | [#257](https://github.com/mjcr88/v0-community-app-project/issues/257) | P1       |  S  | 4-8h       | [conversation_continuity](file:///Users/mj/Developer/v0-community-app-project/docs/07-product/02_requirements/requirements_2026-03-28_rio_conversation_continuity.md) |
 | M10 | ~~UI: Chat History list ("See previous chats" + pagination + thread titles)~~ | [#260](https://github.com/mjcr88/v0-community-app-project/issues/260) | P2       |  M  | 1-2d       | **[Out of Scope]** |
 | M11 | ~~UI: "Start new chat" button~~                                                                      | [#258](https://github.com/mjcr88/v0-community-app-project/issues/258) | P2       |  XS  | 2-4h       | **[Out of Scope]** |
 | M12 | UI: Privacy Settings page (`/dashboard/settings/privacy`) + GDPR controls                      | [#259](https://github.com/mjcr88/v0-community-app-project/issues/259) | P2       |  M  | 1-2d       | 🟢 Complete |
@@ -90,7 +90,7 @@ const [tenant, profile] = await Promise.all([
 
 - Thread IDs are generated **server-side** by the `/threads/new` endpoint (new in this sprint).
 - The client calls this endpoint when the session expires or "Start new chat" is clicked.
-- `lastActivityAt` is tracked in localStorage; the expiry check happens client-side on chat open, triggering the server-create if needed.
+- Session timeout is strictly validated **server-side** using the `updatedAt` field. The client no longer trusts local activity timestamps for expiry decisions.
 - The localStorage key continues to be scoped by `{tenantSlug}-{userId}` per the `[2026-03-18] Frontend Cache as Security Confusion` pattern.
 
 ### Semantic Recall — Resource-Scoped
@@ -170,6 +170,10 @@ Implementation is prioritized by architectural risk and foundational dependencie
     - [x] Use **Direct Storage Lookup** in dynamic body functions to bypass React state lag.
     - [x] Centralize Agent URL resolution in `lib/ai/config.ts` to favor `RIO_RAILWAY_URL` in production.
     - [x] Added request-level diagnostic logging to Agent for thread ownership transparency.
+11. **Phase 11: SQL & RLS Session Remediation**: 🟢 Complete.
+    - [x] Fix **SQL Column Naming**: Changed `updated_at` to `"updatedAt"` to match Mastra v1.x schema.
+    - [x] Fix **RLS Connection Affinity**: Switched to `pool.connect()` to guarantee RLS context persists across raw queries.
+    - [x] Implement **Hydration Robustness**: Added defensive string-safety for historical message rendering.
 
 ---
 
@@ -209,9 +213,9 @@ Implementation is prioritized by architectural risk and foundational dependencie
 
 ### M9: Session Timeout
 
-- [x] AC1: If the resident closes and reopens the chat within 15 minutes, the same thread resumes.
-- [x] AC2: If the resident reopens after 15 minutes, the chat opens fresh (new thread, empty message list).
-- [x] AC3: `lastActivityAt` is updated in localStorage on every sent message.
+- [x] AC1: If the resident closes and reopens the chat within 1 hour, the same thread resumes.
+- [x] AC2: If the resident reopens after 1 hour, the chat opens fresh (new thread, empty message list).
+- [x] AC3: Thread validity is checked against the server's `/active` endpoint on every open.
 
 ---
 
@@ -265,7 +269,7 @@ Implementation is prioritized by architectural risk and foundational dependencie
 - [x] PR reviewed
 - [x] Manual QA: Working Memory fact persists across sessions
 - [x] Manual QA: Semantic Recall surfaces a relevant prior topic
-- [x] Manual QA: Session timeout creates fresh thread after 15 min
+- [x] Manual QA: Session timeout creates fresh thread after 1 hour
 - [x] Manual QA: Chat History list shows last 5 threads with correct titles
 - [x] Manual QA: Privacy Settings lists and deletes facts correctly
 - [x] Security: Cross-tenant Working Memory isolation verified (two residents, separate memories)
@@ -279,7 +283,7 @@ Implementation is prioritized by architectural risk and foundational dependencie
 Rio now remembers who you are and what you've discussed before.
 - **Message Hydration**: Conversations no longer start with a blank slate. Your recent history (up to 10 messages) is loaded automatically when you open the chat.
 - **Improved Personalization**: Rio's long-term memory (Working Memory and Semantic Recall) is now strictly isolated to your user account, ensuring better relevance and security.
-- **Server-Driven Sessions**: Chat sessions are more robust, with thread IDs managed by the server to support consistent 15-minute inactivity timeouts.
+- **Server-Driven Sessions**: Chat sessions are more robust, with thread IDs managed by the server to support consistent 1-hour inactivity timeouts.
 
 ### ⚡ Performance Optimizations
 Significant improvements to the speed and responsiveness of the dashboard.

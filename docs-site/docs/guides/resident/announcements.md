@@ -1,18 +1,22 @@
 # Official Announcements
 
+:::info
+Looking for community bylaws or parking rules? Check the [Community Resources](./documents.md) section.
+:::
+
 The Announcements section of your dashboard is where property management, HOA boards, or building administration will post important, official information. Unlike standard community posts or event discussions, these are one-way broadcast messages meant to keep you informed about what's happening in your community.
 
 ## Viewing Announcements
 
 Important communications appear directly on your main dashboard in the **"Official Announcements"** widget. 
 
-![Resident Announcements Widget](/screenshots/announcements-resident-widget.png)
+![Resident Announcements Widget](/screenshots/announcements_resident_widget_step_1.png)
 
 - Unread announcements will have a visual indicator to grab your attention.
 - Clicking on an announcement card will open its full details, marking it as "Read".
 - Some announcements may include a location pin or be linked directly to an upcoming community Event.
 
-![Announcement Details](/screenshots/announcements-resident-details.png)
+![Announcement Details](/screenshots/announcements_resident_details_step_1.png)
 
 ### Priority Levels
 

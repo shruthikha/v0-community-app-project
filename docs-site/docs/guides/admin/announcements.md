@@ -15,7 +15,7 @@ The Announcements module allows Tenant Admins to broadcast important information
   - *Archived:* Moved off the main dashboard into the historical "Archive" tab.
 - **Targeting (Neighborhoods):** Announcements can be broadcast "Community-Wide" or restricted to specific neighborhoods so only residents whose lots belong to those neighborhoods see them.
 
-![Admin Announcements Table](/screenshots/announcements-admin-table.png)
+![Admin Announcements Table](/screenshots/announcements_admin_table_step_1.png)
 ## Creating an Announcement
 
 1. Navigate to your Admin Dashboard.
@@ -28,15 +28,26 @@ The Announcements module allows Tenant Admins to broadcast important information
    - *Event Link:* Attach an existing community event to the announcement.
    - *Location:* Attach a community facility or drop a custom GPS pin on the map.
 7. **Auto-Archive:** Select an optional date and time. The system will automatically move the announcement to the Archive when this time passes, preventing clutter on resident dashboards.
-8. **Save:** Choose "Save as Draft" (to edit later) or "Publish Now" (makes it immediately live and notifies residents).
+8. **Save**: Choose "Save as Draft" (to edit later) or "Publish Now" (makes it immediately live and notifies residents).
 
-![Admin Create Announcement Form](/screenshots/announcements-create-form.png)
+### The Auto-Archive System
+Announcements support an automated lifecycle to prevent dashboard clutter. When an `auto_archive_date` is set, a background cron job runs daily at Midnight UTC to:
+1. Transition the status from `Published` to `Archived`.
+2. Hide the announcement from the primary Resident dashboard widget.
+3. Move the record to the historical "Archive" tab for long-term record keeping.
 
-> [!NOTE] 
-> Auto-archiving is handled by a scheduled background job. For technical details, see [Background Jobs](../../developers/announcements/background-jobs.md).
+:::info
+For permanent resources like bylaws or parking rules, use the [Official Documents](./documents.md) module instead. Documents do not auto-archive and remain as permanent community assets.
+:::
+
+![Admin Create Announcement Form](/screenshots/announcements_create_form_step_2.png)
 ## Editing & Managing
 
 From the main Announcements data table, you can see all your communications.
+
+:::tip
+For permanent resources like bylaws or parking rules, use the [Official Documents](./documents.md) module instead. Announcements are best for temporary news and events.
+:::
 
 - **Edit:** Click the edit icon to change any details. *Note: If you edit an already published announcement, a secondary "Updated" notification will be sent to residents.*
 - **Quick Publish:** Transition a draft directly to published using the 📢 icon.

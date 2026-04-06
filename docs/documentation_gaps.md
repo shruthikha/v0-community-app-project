@@ -1,0 +1,103 @@
+# Documentation Gaps
+
+- **2026-01-24**: `docs/07-product/03_prds/prd.md` is empty. The project lacks a central Product Requirements Document, which makes it difficult to validate alignment of new features like "Event Filtering" against broader goals.
+- **2026-01-26**: [DONE] Missing `docs/02-technical/domains/locations.md` (Domain Architecture for Locations).
+- **2026-01-26**: Critical: `supabase/migrations` directory missing. Cannot verify RLS policies against code.
+- **2026-01-26**: `docs/02-technical/api` is empty. Missing `api-reference.md`.
+- **2026-01-26**: [DONE] `docs/02-technical/schema/tables/locations.md` is missing. Needed to document `facility_type` and logic.
+
+- **2026-01-26**: Missing API Documentation for `app/actions/events.ts` (specifically `rsvpToEvent` server action and series support).
+- **2026-01-30**: Missing `docs/02-technical/infrastructure/supabase-cli.md` (Dev Environment Setup).
+- **2026-01-30**: Missing `docs/02-technical/infrastructure/github-actions.md` (CI/CD Pipeline).
+- **2026-01-30**: Missing `docs/01-manuals/dev-guide.md` updates for Schema Change Workflow.
+- **2026-01-26**: Missing `docs/01-manuals/resident-guide` updates for "Series RSVP" user workflows.
+- **2026-01-26**: [DONE] Missing `comments` table documentation in `docs/02-technical/schema/` (Resolved in Requests Documentation).
+- **2026-03-08**: [DONE] Missing documentation for "Reopen Request" admin workflow.
+- **2026-03-08**: [DONE] Missing documentation for "Resident Request Visibility" (Public/Private toggle logic).
+- **2026-01-26**: Missing Analytics event specification for `request_comment_added`.
+- **2026-01-27**: Missing schema documentation for `lots` table (Schema & RLS). [Review Item 151884757]
+- **2026-01-27**: Missing resident guide section for "Home Showcase" features. [Review Item 151884757]
+- **2026-01-27**: Missing 'Link Account' security documentation in 'docs/02-technical/architecture/domains/identity.md'. [Review Item 151893279]
+- 2026-01-27: Missing API docs for '/api/auth/callback'. [Review Item 151893279]
+- 2026-01-27: [DONE] Missing specific session management and timeout specifications in `docs/02-technical/architecture/domains/identity.md`. [Brainstorm Item: Auto Logout]
+- 2026-01-27: Missing UI/UX specification for the "Override and Create New Family" confirmation flow in `docs/03-design/`. [Brainstorm Item: Admin Family Selection]
+- 2026-01-28: Missing authentication and password recovery documentation in `docs/02-technical/architecture/domains/identity.md`.
+- 2026-01-28: Missing Admin Guide section for "Handling Password Reset Requests".
+- 2026-01-28: Missing Resident Guide section for "Lost Password Recovery Flow".
+- 2026-01-28: Missing user guide section for "Requesting Items" in `docs/01-manuals/resident-guide`.
+- 2026-01-29: Missing `docs/02-technical/schema/tables/password_resets.md` (Proposed private table).
+- 2026-01-29: Missing `docs/02-technical/flows/auth/password-reset.md` (Auth Flow).
+- 2026-01-29: Missing process in `docs/01-manuals/admin-guide` for handling reset requests.
+- **2026-01-29**: Missing Security Documentation for `app/t/[slug]/dashboard/neighbours/page.tsx` payload security. [Review Item 69]
+- **2026-01-29**: **Critical Security Gap**: Server actions/pages are sending raw PII (emails/phones) to the client component `NeighboursPageClient`, relying on client-side privacy filtering. This violates "Backend-First" security.
+- **2026-01-29**: Missing "Backend-First" Privacy Standard documentation. [Review Item 153123500]
+- **2026-01-29**: Missing Neighbors Page payload specification. [Review Item 153123500]
+
+- **2026-01-29**: Missing `docs/01-manuals/resident-guide/login.md` covering specific login policies (Remember Me, Timeout). [Review Item 152467764]
+- **2026-01-29**: Missing `docs/01-manuals/resident-guide` updates for "Check-in Comments".
+- **2026-01-29**: [DONE] Missing table validation for `comments`.
+- **2026-01-29**: [DONE] Missing RLS Policy documentation for `comments`.
+- **2026-01-29**: Missing `comment_posted` definition in `docs/02-technical/analytics/analytics-events.md`.
+- **2026-01-29**: [DONE] Missing API documentation for `postComment` (Resolved in Requests API Docs).
+- **2026-02-04**: [DONE] Missing `docs/02-technical/schema/tables/locations.md` (Domain Architecture for Locations).
+- **2026-02-04**: [DONE] Missing specification for map styling/theming and dynamic color customization (Resolved in Phase 5: Map System Documentation).
+- **2026-02-07**: [DONE] Missing RLS policy documentation for 'events' table. (See developers/api/events-checkins.md)
+- **2026-02-07**: [DONE] Missing API documentation for 'app/actions/events.ts'. (See developers/api/events-checkins.md)
+- **2026-02-07**: [DONE] Missing Admin Guide for "Edit This Event Only" (Detachment) workflow. (See guides/admin/events.md)
+- **2026-02-07**: [DONE] Missing Resident Guide for "Series RSVP" consistency and visual indicators. (See guides/resident/events.md)
+
+- **2026-02-14**: Missing `docs/01-manuals/resident-guide` updates for "How to Reset Password" (Self-Service flow).
+- **2026-02-14**: Missing `docs/01-manuals/admin-guide` updates to mark Admin-Mediated Reset as superseded by Self-Service.
+- **2026-02-14**: [DONE] Missing `docs/02-technical/flows/auth/password-reset.md` (Self-Service implementation details). See worklog `log_2026-02-22_70-password-reset.md`.
+- **2026-02-14**: Missing directory `docs/02-technical/flows/auth/`.
+
+- **2026-02-14**: Missing Admin Guide pages for resident management and access request review.
+- **2026-02-14**: Missing technical documentation for public/unauthenticated endpoints (lots, access-request).
+- **2026-02-14**: Missing RLS policy documentation for the access_requests table.
+- **2026-02-14**: Missing schema and policy documentation for `users`, `user_interests`, `user_skills`, `skills`.
+- **2026-02-14**: Missing Resident Guide content for "Profile Auto-Save".
+- **2026-02-14**: Missing documentation for new shared component `ImageCropper` (client-side cropping logic).
+- **2026-02-15**: Missing Resident Guide content for the refreshed 2026 Product Tour (Issue #117).
+
+- **2026-02-25**: Missing Admin Guide documentation for "Access Requests" tab with CR/non-CR sub-tab filtering (Issue #99).
+- **2026-02-25**: Missing specification for lot occupancy context display in admin review UI (Issue #99).
+- **2026-02-25**: Missing Resident Guide section for "How to Request Access" (public form + CR notification) (Issue #99).
+- **2026-03-10**: Missing Resident Guide screenshot/section update for the new Grouped UI Filters and Journey Phase filtering in the Directory (Issue #111).
+- **2026-03-10**: Missing technical documentation for `Combobox` search/filtering logic (Issue #155).
+- **2026-03-10**: Lot number format standards are not documented in `docs/02-technical/schema/tables/lots.md` (Issue #155).
+- **2026-03-10**: Missing community-wide standard for member visibility in custom lists (Issue #156).
+- **2026-03-10**: Lack of documentation on how different user roles should be represented/filtered in community-facing directories (Issue #156).
+- **2026-03-10**: Missing resident guide content for "Community Dashboard & Announcements" (Tabs, Archive flow).
+- **2026-03-10**: Missing schema documentation for `announcements`, `announcement_reads`, and `announcement_neighborhoods` tables.
+- **2026-03-10**: Missing RLS policy documentation for `announcements`, `announcement_reads`, and `announcement_neighborhoods` in `docs/02-technical/schema/policies/`.
+- **2026-03-10**: **Critical Documentation Gap**: No existing standards for notification types, priorities, or bulk implementation patterns. Missing `docs/06-decisions/0004-notification-standards.md`.
+- **2026-03-10**: Missing central Trigger Registry for community notifications (Documents, Announcements, Skills, Interests).
+- **2026-03-12**: **Design System Gap**: `clay-red` token is missing from `app/globals.css` but widely used in the codebase, causing invisible UI elements (e.g., #155).
+- [x] Gap 77: `docs/02-technical/rio-agent/overview.md` (created)
+- [x] Gap 78: API documentation for `GET /health` and `POST /api/chat` (in overview.md)
+- [x] Gap 79: Session memory schema (`mastra_threads`, `mastra_messages`) (in schema.md)
+- [x] Gap 80: `rio_embeddings` vector index schema (in schema.md)
+- [x] Gap 81: RAG retrieval pipeline documentation (in overview.md)
+- **2026-03-20**: [DONE] Missing infrastructure documentation for secure Agent-to-BFF handshake (auth secrets/headers).
+- **2026-03-20**: [DONE] Missing operational guide for `rio_upsert_rpc` concurrency limits and manual recovery.
+- **2026-03-20**: [DONE] Missing schema documentation for `rio_documents` relationship to `storage.objects`.
+- **2026-03-22**: Missing mobile layout specification for `RioWelcomeCard` redesign (#178).
+- **2026-03-22**: Missing UI state documentation for dashboard-to-sheet transition animations (#178).
+- **2026-03-22**: Missing Analytics event specification for `rio_chat_entry_dashboard` (#178).
+- **2026-03-22**: Missing updated "Create" menu screenshot in Resident Guide (#179).
+- **2026-03-22**: Missing sequence diagram for the full RAG chat flow (Resident -> BFF -> Railway Agent) (#180).
+- **2026-03-22**: Missing technical documentation for the new `use-rio-chat` global state pattern (#180).
+- **2026-03-22**: Missing internal documentation for the "3-tier" prompt composition strategy (System + Community + RAG) (#193).
+- **2026-03-22**: Missing API error code catalog for the Río BFF (`RIO_DISABLED`, `RIO_AGENT_TIMEOUT`) (#195).
+- **2026-03-22**: Missing mobile responsive mockups for the new "Source Citation" card layout in chat bubbles (#197).
+- [x] **Official Documents**: Needs full technical and user-facing documentation. (Resolved in Phase 5)
+- [x] **Río AI Agent**: Technical overview of Mastra integration and resident context injection. (Resolved in Phase 5)
+- **2026-03-25**: [DONE] Missing `docs/01-manuals/resident-guide.md` updates for "Rio Citations & Sources" UI.
+- **2026-03-25**: [DONE] Missing `docs/02-technical/architecture/domains/rio-rag-citations.md` (Design document for usage filtering).
+- **2026-03-25**: [DONE] Missing `docs/02-technical/schema/policies/rio_documents.md` plain English RLS documentation.
+- **2026-03-26**: [DONE] Missing `docs/02-technical/rio-agent/memory-architecture.md` (Thread namespacing & Resident scoping).
+- **2026-03-26**: [DONE] Missing API reference for `threads/new` and `threads/messages` endpoints (in `overview.md`).
+- **2026-03-26**: Missing `docs/02-technical/flows/rio-profile-injection.md` (Sequence diagram for BFF profile enrichment).
+- **2026-03-28**: Missing `docs/01-manuals/resident-guide.md` updates for "Chat History" and "Privacy Settings" (Sprint 12 UI changes).
+- **2026-03-28**: Missing RLS policy documentation for Mastra storage tables (`mastra_memory`, `mastra_threads`).
+- **2026-04-05**: Missing technical implementation documentation for "Internal Admin Notes" in Requests (Currently a placeholder in UI/Docs).

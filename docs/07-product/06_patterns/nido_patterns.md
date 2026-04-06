@@ -568,3 +568,14 @@ ssl: isLocal ? false : { rejectUnauthorized: false }
 1. **Memoize Stably**: The `DefaultChatTransport` should have a stable reference (e.g., `useMemo` depending only on `tenantId/userId`, NOT `threadId`).
 2. **Direct Storage Lookup**: In the transport's `body` resolver function, read the `threadId` directly from the source of truth (e.g., `localStorage.getItem(key)`). This bypasses the asynchronous nature of React state and ensures the latest ID is always sent to the server.
 3. **Validation on Open**: Combine with server-side validation of the cached ID before allowing the first message.
+### [2026-03-31] Mastra SQL Case Sensitivity
+**Type**: Gotcha
+**Context**: Writing raw SQL queries against Mastra v1.x internal tables (e.g., `mastra_threads`).
+**Problem**: Mastra uses Prisma-style camelCase for Postgres columns (e.g., `updatedAt`). Postgres defaults all unquoted identifiers to lowercase. Querying `updated_at` or `updatedat` will fail.
+**Fix**: Always wrap camelCase column names in double quotes: `SELECT * FROM mastra_threads WHERE "updatedAt" > ...`.
+
+### [2026-03-31] RLS Connection Pool Affinity
+**Type**: Pattern
+**Context**: Initializing Postgres RLS context (`SET LOCAL app.current_user = ...`) in a Node.js environment using `pg.Pool`.
+**Problem**: The `pool.query()` shorthand may use different connections from the pool for subsequent calls. If `initRls` and the actual query use different connections, the `SET LOCAL` configuration (which is session-scoped) is lost, leading to RLS permission errors.
+**Fix**: Use `pool.connect()` to acquire a dedicated client for the duration of the request or transaction. Ensure `initRls` and all related queries are executed on that same client instance before calling `client.release()`.

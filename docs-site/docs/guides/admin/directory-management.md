@@ -1,6 +1,6 @@
 # Admin Guide: Directory Management
 
-As a Community Admin, you are responsible for maintaining an accurate and safe resident directory. This includes managing people, pets, and reviewing new access requests.
+As a Community Admin, you are responsible for maintaining an accurate and safe resident directory. While individual profile data is maintained in the [Resident Profiles Guide](./directory/resident-profiles.md), the structural organization of households is managed via [Family Units](./profile-management/family-unit-management.md).
 
 ## Managing Residents & Pets
 
@@ -20,10 +20,10 @@ The main table is your primary tool for community oversight.
 
 ### Search and Actions
 - **Quick Search**: Filter the entire directory by name, email, lot number, or neighborhood.
-  ![Resident Table Admin](/screenshots/resident-table-admin.png)
+  ![Resident Table Admin](/screenshots/resident_table_admin_step_1.png)
 - **Admin Actions**: Directly perform maintenance tasks using the icons at the end of each row:
   - **Pencil (Edit)**: Open the modification modal to update a resident's details (Email, Lot, Roles).
-    ![Edit Resident Admin](/screenshots/edit-resident-admin.png)
+    ![Edit Resident Admin](/screenshots/resident_edit_admin_step_1.png)
   - **Trash (Delete)**: Permanently remove a resident profile from the directory.
 
 ---
@@ -34,9 +34,9 @@ Admins can manually add residents or pets to the community without waiting for a
 
 1. Click **"Add New"** at the top of the Resident table.
 2. **Step 1: Basic Information**: Provide the name and select whether they are a Resident or a Pet.
-    ![Create Resident Step 1](/screenshots/create-resident-step1-admin.png)
+    ![Create Resident Step 1](/screenshots/resident_create_admin_step_1.png)
 3. **Step 2: Profile Details**: Assign them to a Lot and Family Unit. Provide contact information if available.
-    ![Create Resident Step 2](/screenshots/create-resident-step2-admin.png)
+    ![Create Resident Step 2](/screenshots/resident_create_admin_step_2.png)
 
 ---
 
@@ -56,10 +56,10 @@ When new people join the community via the public form, they appear in the **Acc
 
 ### Review Workflow
 1. Switch to the **Access Requests** tab.
-    ![Resident Access Request Review](/screenshots/resident-access-request-admin.png)
+    ![Resident Access Request Review](/screenshots/resident_access_request_admin_step_1.png)
 2. Review the requester's self-provided details and their intended Lot.
-3. **Approve**: This validates the user, creates their permanent resident record, and sends an automated invitation email.
-4. **Reject**: Declines the request. The user will not be granted access to community features.
+3. **Approve**: This redirects you to the **Create Resident** form, pre-filled with the requester's data. You must finalize their lot assignment and unit grouping here before the account is officially created.
+4. **Reject**: Declines the request and removes it from the queue.
 
 ---
 

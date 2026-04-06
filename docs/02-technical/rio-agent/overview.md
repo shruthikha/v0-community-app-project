@@ -5,7 +5,9 @@ The Rio Agent is a specialized AI service built using **Mastra** to assist resid
 ## ⚡ Hardening & Security (Sprint 12)
 
 ### RLS Session Initialization
-The `ThreadStore` manages a dedicated `initRls(tenantId, userId)` hook. This ensures that every call to the Mastra `Memory` instance is wrapped in a Postgres transaction where `app.current_tenant` and `app.current_user` are set. This is critical for maintaining data isolation in framework-managed tables.
+The `ThreadStore` manages a dedicated `initRls(tenantId, userId)` hook. This ensures that every call to the Mastra `Memory` instance is wrapped in a Postgres transaction where `app.current_tenant` and `app.current_user` are set. 
+
+**Connection Affinity**: When executing raw SQL alongside RLS initialization (e.g., in `/threads/active`), it is CRITICAL to use `pool.connect()` to acquire a dedicated client. Standard `pool.query()` calls may use different connections from the pool, causing the session-local RLS configuration (`SET LOCAL`) to be lost.
 
 ### Server-Authoritative Threads
 Thread IDs are never generated on the client. The `/api/v1/ai/threads/new` endpoint handles creation, ensuring that `tenantId` and `userId` metadata are stamped server-side in a "Backend-First" manner.
@@ -38,7 +40,8 @@ Río provides a dedicated chat interface for residents:
 - **Components**: `RioChatSheet` (responsive Sheet/Drawer) and `RioWelcomeCard` (dashboard entry).
 - **State Management**: `use-rio-chat` Zustand store for global sheet visibility.
 - **Hydration**: (Sprint 12) Support for **Message Hydration** upon opening the sheet. The BFF proxies the last 10 messages from Mastra's `listMessages` to prevent an empty state on session resume.
-- **Thread Management**: (Sprint 12) **Server-Authoritative Threads**. Thread IDs are generated via `POST /api/v1/ai/threads/new`. The chat client validates the current `threadId` against the server's `/active` endpoint on every session resume. This prevents `403 Forbidden` errors from stale local caches. If validation fails or the session has expired (15 min), the UI atomically resets the message transcript and creates a new thread.
+- **Thread Management**: (Sprint 12) **Server-Authoritative Threads**. Thread IDs are generated via `POST /api/v1/ai/threads/new`. The chat client validates the current `threadId` against the server's `/active` endpoint on every session resume. This prevents `403 Forbidden` errors from stale local caches.
+- **SQL Schema Sensitivity**: Raw SQL queries against Mastra internal tables (like `mastra_threads`) must use double-quoted camelCase for columns like `"updatedAt"`. Using `updated_at` will result in a silent failure or 500 error, as Mastra v1.x uses the Prisma-style naming convention in Postgres.
 - **Resynchronization Hardening**: (Sprint 12 / Phase 10) To prevent `403 Forbidden` errors caused by React state lag or closure staleness, the chat UI uses a **Stable Transport Pattern**. The `DefaultChatTransport` is memoized without `threadId` dependencies, and its dynamic `body` function reads the `threadId` directly from `localStorage` at the moment of request. This ensures that the newly created server-side thread ID is always prioritized over stale UI states.
 - **Interactive Citations**: RAG sources are rendered as interactive Popovers.
 

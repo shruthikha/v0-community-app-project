@@ -7,8 +7,46 @@ const sidebars: SidebarsConfig = {
       label: 'Admin',
       collapsed: false,
       items: [
-        { type: 'doc', id: 'guides/admin/announcements', label: 'Managing announcements' },
-        { type: 'doc', id: 'guides/admin/directory-management', label: 'Managing residents' },
+        {
+          type: 'category',
+          label: 'Official Information',
+          collapsed: false,
+          items: [
+            { type: 'doc', id: 'guides/admin/announcements', label: 'Announcements' },
+            { type: 'doc', id: 'guides/admin/documents', label: 'Community Resources' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Profile Management',
+          collapsed: false,
+          items: [
+            { type: 'doc', id: 'guides/admin/directory/resident-profiles', label: 'Resident Profiles' },
+            { type: 'doc', id: 'guides/admin/profile-management/family-unit-management', label: 'Family Units' },
+            { type: 'doc', id: 'guides/admin/directory/access-requests', label: 'Access Requests' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Río AI',
+          items: [
+            { type: 'doc', id: 'guides/admin/rio/persona-and-tone', label: 'Persona and Tone' },
+            { type: 'doc', id: 'guides/admin/rio/document-ingestion', label: 'Document Ingestion' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Map Management',
+          collapsed: false,
+          items: [
+            { type: 'doc', id: 'guides/admin/map/editor', label: 'Map Editor' },
+            { type: 'doc', id: 'guides/admin/map/geojson-upload', label: 'GeoJSON Upload' },
+            { type: 'doc', id: 'guides/admin/map/data-protection', label: 'Deletion & Protection' },
+          ],
+        },
+        { type: 'doc', id: 'guides/admin/events', label: 'Events Management' },
+        { type: 'doc', id: 'guides/admin/exchange', label: 'Exchange Moderation' },
+        { type: 'doc', id: 'guides/admin/requests', label: 'Resident Requests' },
       ],
     },
     {
@@ -16,8 +54,90 @@ const sidebars: SidebarsConfig = {
       label: 'Residents',
       collapsed: false,
       items: [
-        { type: 'doc', id: 'guides/resident/announcements', label: 'Official announcements' },
-        { type: 'doc', id: 'guides/resident/neighbours', label: 'Neighbor directory' },
+        {
+          type: 'category',
+          label: 'Official Information',
+          collapsed: false,
+          items: [
+            { type: 'doc', id: 'guides/resident/announcements', label: 'Official Announcements' },
+            { type: 'doc', id: 'guides/resident/documents', label: 'Community Resources' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Profile Management',
+          items: [
+            { type: 'doc', id: 'guides/resident/profile-management/managing-your-profile', label: 'My Profile' },
+            { type: 'doc', id: 'guides/resident/profile-management/household-management', label: 'My Household' },
+            { type: 'doc', id: 'guides/resident/profile-management/privacy-rio-settings', label: 'Privacy & Río' },
+            { type: 'doc', id: 'guides/resident/profile-management/authentication-access', label: 'Authentication & Access' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Neighbor Directory',
+          items: [
+            { type: 'doc', id: 'guides/resident/directory/using-the-directory', label: 'Exploring the Directory' },
+            { type: 'doc', id: 'guides/resident/directory/neighbor-lists', label: 'Neighbor Lists' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Río AI',
+          items: [
+            { type: 'doc', id: 'guides/resident/rio/chat-basics', label: 'Chatting with Río' },
+            { type: 'doc', id: 'guides/resident/rio/privacy-management', label: 'Memory & Privacy' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Community Map',
+          collapsed: false,
+          items: [
+            { type: 'doc', id: 'guides/resident/map/viewer-basics', label: 'Using the Map' },
+            { type: 'doc', id: 'guides/resident/map/3d-mode', label: '3D High-Fidelity Mode' },
+            { type: 'doc', id: 'guides/resident/map/location-details', label: 'Location Details' },
+            { type: 'doc', id: 'guides/resident/map/check-ins', label: 'Real-time Check-ins' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Events & Activities',
+          collapsed: false,
+          items: [
+            { type: 'doc', id: 'guides/resident/events', label: 'Events' },
+            { type: 'doc', id: 'guides/resident/check-ins', label: 'Check-ins' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Exchange & Barter',
+          collapsed: false,
+          items: [{ type: 'autogenerated', dirName: 'guides/resident/exchange' }],
+        },
+        {
+          type: 'category',
+          label: 'Community Requests',
+          collapsed: false,
+          items: [
+            { type: 'doc', id: 'guides/resident/requests/viewing', label: 'Viewing Requests' },
+            { type: 'doc', id: 'guides/resident/requests/creation', label: 'Creating a Request' },
+            { type: 'doc', id: 'guides/resident/requests/monitoring', label: 'Monitoring & Follow-up' },
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Resident Dashboard',
+          collapsed: false,
+          items: [
+            { type: 'doc', id: 'guides/resident/dashboard/overview', label: 'Overview' },
+            { type: 'doc', id: 'guides/resident/dashboard/priority-feed', label: 'Priority Feed' },
+            { type: 'doc', id: 'guides/resident/dashboard/quick-stats', label: 'Quick Stats' },
+            { type: 'doc', id: 'guides/resident/dashboard/explore-catchup', label: 'Explore & Catch-up' },
+            { type: 'doc', id: 'guides/resident/dashboard/rio-onboarding', label: 'Río & Onboarding' },
+          ],
+        },
+        { type: 'doc', id: 'guides/resident/notifications', label: 'Notifications' },
       ],
     },
   ],
@@ -29,8 +149,69 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Official Documents',
+      items: [{ type: 'autogenerated', dirName: 'developers/documents' }],
+    },
+    {
+      type: 'category',
       label: 'Neighbor Directory',
       items: [{ type: 'autogenerated', dirName: 'developers/residents' }],
+    },
+    {
+      type: 'category',
+      label: 'Profile Management',
+      items: [{ type: 'autogenerated', dirName: 'developers/profile-management' }],
+    },
+    {
+      type: 'category',
+      label: 'Río AI Agent',
+      items: [{ type: 'autogenerated', dirName: 'developers/rio-agent' }],
+    },
+    {
+      type: 'category',
+      label: 'Map System',
+      items: [{ type: 'autogenerated', dirName: 'developers/map-system' }],
+    },
+    {
+      type: 'category',
+      label: 'Events & Check-ins',
+      collapsed: false,
+      items: [
+        { type: 'doc', id: 'developers/events-checkins/api', label: 'API Reference' },
+        { type: 'doc', id: 'developers/events-checkins/background-processes', label: 'Background Processes' },
+        { type: 'doc', id: 'developers/events-checkins/data-model', label: 'Data Model' },
+        { type: 'doc', id: 'developers/events-checkins/security-privacy', label: 'Security & Privacy' },
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Exchange System',
+      items: [{ type: 'autogenerated', dirName: 'developers/exchange' }],
+    },
+    {
+      type: 'category',
+      label: 'Requests System',
+      items: [
+        { type: 'doc', id: 'developers/requests/api-reference', label: 'API Reference' },
+        { type: 'doc', id: 'developers/requests/data-model', label: 'Data Model' },
+        { type: 'doc', id: 'developers/requests/ecosystem-mapping', label: 'Ecosystem Mapping' },
+        { type: 'doc', id: 'developers/requests/security-privacy', label: 'Security & Privacy' },
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Notifications System',
+      items: [{ type: 'autogenerated', dirName: 'developers/notifications' }],
+    },
+    {
+      type: 'category',
+      label: 'Resident Dashboard',
+      items: [
+        { type: 'doc', id: 'developers/dashboard/api-server-actions', label: 'API & Server Actions' },
+        { type: 'doc', id: 'developers/dashboard/data-model', label: 'Data Model' },
+        { type: 'doc', id: 'developers/dashboard/background-processes', label: 'Background Processes' },
+        { type: 'doc', id: 'developers/dashboard/security-privacy', label: 'Security & Privacy' },
+      ],
     },
   ],
 };
