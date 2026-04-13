@@ -38,6 +38,18 @@ supabase/migrations/clean_schema_v*.sql
 test-results/
 playwright-report/
 
+# OpenCode local state
+.opencode/sessions/
+.opencode/cache/
+
+# Local secrets
+.agents/config.local.yaml
+.agents/*.secret.*
+
+# Obsidian local state (if installed)
+.obsidian/workspace*.json
+.obsidian/cache
+
 #Documentation
-/docs/
+/docs-legacy/
 .agent/

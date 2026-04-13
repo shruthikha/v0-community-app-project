@@ -1,0 +1,32 @@
+# .agents/config.yaml
+# Project-wide configuration for AI agents and workflows.
+# NO SECRETS here — use config.local.yaml for real values.
+
+project:
+  name: "Ecovilla Community Platform"
+  github:
+    repo_slug: "mjcr88/v0-community-app-project"
+    default_branch: "main"
+    projects:
+      project_number: 1
+      project_url: "https://github.com/users/mjcr88/projects/1"
+
+supabase:
+  dev:
+    url: "https://ehovmoszgwchjtozsfjw.supabase.co"
+  prod:
+    url: "https://csatxwfaliwlwzrkvyju.supabase.co"
+
+paths:
+  docs_dev: "docs/dev/"
+  docs_specs: "docs/specs/"
+  docs_user: "docs/user/"
+  knowledge_raw: "knowledge/raw/"
+  knowledge_wiki: "knowledge/wiki/"
+  knowledge_outputs: "knowledge/outputs/"
+  opencode_agents: ".opencode/agent/"
+  opencode_commands: ".opencode/command/"
+  opencode_skills: ".opencode/skills/"
+  supabase_migrations: "supabase/migrations/"
+  apps_nido: "app/"
+  packages: "packages/"

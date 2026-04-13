@@ -42,7 +42,7 @@
 ---
 
 ## 🔑 Key Files
-- `design/nido_design_system.md` MOVED TO `docs/03-design/design-system/nido_design_system.md` -> **Design Truth**.
+- `design/nido_design_system.md` MOVED TO `docs-legacy/03-design/design-system/nido_design_system.md` -> **Design Truth**.
 - `app/globals.css` -> **Global Styles** (Tailwind).
 - `tailwind.config.ts` -> **Theme Config**.
 

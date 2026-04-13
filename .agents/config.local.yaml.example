@@ -1,0 +1,34 @@
+# .agents/config.local.yaml.example
+# Copy this to config.local.yaml and fill in real values.
+# THIS FILE IS GITIGNORED — never commit real values.
+
+project:
+  name: "Ecovilla Community Platform"
+  github:
+    repo_slug: "XYZ"
+    default_branch: "main"
+    projects:
+      project_number: 1
+      project_url: "https://github.com/users/XYZ/projects/1"
+
+supabase:
+  dev:
+    url: "https://XYZ.supabase.co"
+    # Add dev-specific config here (service role key, etc.)
+  prod:
+    url: "https://XYZ.supabase.co"
+    # Add prod-specific config here (service role key, etc.)
+
+paths:
+  docs_dev: "docs/dev/"
+  docs_specs: "docs/specs/"
+  docs_user: "docs/user/"
+  knowledge_raw: "knowledge/raw/"
+  knowledge_wiki: "knowledge/wiki/"
+  knowledge_outputs: "knowledge/outputs/"
+  opencode_agents: ".opencode/agent/"
+  opencode_commands: ".opencode/command/"
+  opencode_skills: ".opencode/skills/"
+  supabase_migrations: "supabase/migrations/"
+  apps_nido: "app/"
+  packages: "packages/"
