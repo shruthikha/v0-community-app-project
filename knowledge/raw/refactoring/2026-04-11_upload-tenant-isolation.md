@@ -1,12 +1,13 @@
 ---
 title: Upload path missing tenant_id prefix
-status: in-progress
+status: completed
 created: 2026-04-11
-updated: 2026-04-12
+updated: 2026-04-13
 effort: medium
 category: security
 module: lib/supabase-storage.ts
 related_spec: docs/specs/residential-lot-images/spec.md
+completed_by: Issue #66
 ---
 
 # Upload path missing tenant_id prefix

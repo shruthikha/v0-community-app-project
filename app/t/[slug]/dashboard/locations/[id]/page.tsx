@@ -61,10 +61,18 @@ export default async function LocationDetailsPage({ params }: { params: Promise<
   }
 
   let lot = null
+  let lotPhotos: string[] = []
+  let lotHeroPhoto: string | null = null
   let residents: any[] = []
   if (location.lot_id) {
-    const { data: lotData } = await supabase.from("lots").select("id, lot_number").eq("id", location.lot_id).single()
+    const { data: lotData } = await supabase
+      .from("lots")
+      .select("id, lot_number, photos, hero_photo")
+      .eq("id", location.lot_id)
+      .single()
     lot = lotData
+    lotPhotos = lotData?.photos || []
+    lotHeroPhoto = lotData?.hero_photo || null
 
     const { data: residentsData } = await supabase
       .from("users")
@@ -401,151 +409,193 @@ export default async function LocationDetailsPage({ params }: { params: Promise<
         )
       }
 
-      {/* Neighborhood */}
-      {
-        (neighborhood || lot) && (
-          <Card className="hidden md:block">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                Neighborhood
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {neighborhood && (
-                <div className="flex items-center gap-3 p-3 rounded-xl border bg-card text-card-foreground shadow-sm">
-                  <div className="p-2 rounded-full bg-purple-500/10 text-purple-500">
-                    <MapPin className="h-4 w-4" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="font-semibold text-sm text-purple-600 dark:text-purple-400">{neighborhood.name}</h4>
-                  </div>
-                </div>
-              )}
-
-              {lot && (
-                <div className="flex items-center gap-3 p-3 rounded-xl border bg-card text-card-foreground shadow-sm">
-                  <div className="p-2 rounded-full bg-blue-500/10 text-blue-500">
-                    <Home className="h-4 w-4" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="font-semibold text-sm text-blue-600 dark:text-blue-400">Lot #{lot.lot_number}</h4>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )
-      }
-
-      {/* Residents */}
-      {
-        residents.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                <Users className="h-5 w-5" />
-                Residents ({residents.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {familyUnit && (
-                  <Link
-                    href={`/t/${slug}/dashboard/families/${familyUnit.id}`}
-                    className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
-                  >
-                    <Avatar className="h-14 w-14">
-                      <AvatarImage src={familyUnit.profile_picture_url || undefined} alt={familyUnit.name} />
-                      <AvatarFallback className="bg-amber-200 text-amber-900 font-semibold">
-                        {familyUnit.name
-                          ?.split(" ")
-                          .map((n: string) => n[0])
-                          .join("")
-                          .substring(0, 2)
-                          .toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="text-base font-semibold text-amber-900">{familyUnit.name}</p>
-                      <p className="text-sm text-amber-700">
-                        {residents.length} member{residents.length !== 1 ? "s" : ""}
-                      </p>
-                      <p className="text-sm text-amber-600 mt-1">View family profile →</p>
+      {/* 2x2 Grid Layout */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+        {/* Row 2, Col 1: Neighborhood + Gallery (stacked) */}
+        <div className="flex flex-col h-full space-y-6">
+          {/* Neighborhood Section */}
+          {(neighborhood || lot) && (
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Neighborhood
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {neighborhood && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl border bg-card text-card-foreground shadow-sm">
+                    <div className="p-2 rounded-full bg-green-500/10 text-green-600">
+                      <MapPin className="h-4 w-4" />
                     </div>
-                  </Link>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-sm text-green-700 dark:text-green-400">{neighborhood.name}</h4>
+                    </div>
+                  </div>
                 )}
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {residents.map((resident: any) => (
+                {lot && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl border bg-card text-card-foreground shadow-sm">
+                    <div className="p-2 rounded-full bg-blue-500/10 text-blue-500">
+                      <Home className="h-4 w-4" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-sm text-blue-600 dark:text-blue-400">Lot #{lot.lot_number}</h4>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Lot Home Photos (Gallery below neighborhood) */}
+          {lotPhotos.length > 1 && lot && (
+            <PhotoGallerySection
+              photos={lotPhotos}
+              heroPhoto={lotHeroPhoto}
+              locationName={`Lot #${lot.lot_number}`}
+              className="h-full"
+            />
+          )}
+          {/* Location Photo Gallery (shown if no lot photos) */}
+          {lotPhotos.length <= 1 && galleryPhotos.length > 1 && (
+            <PhotoGallerySection
+              photos={galleryPhotos}
+              heroPhoto={location.hero_photo}
+              locationName={location.name}
+              className="h-full"
+            />
+          )}
+        </div>
+
+        {/* Row 2, Col 2: Residents and Pets */}
+        <div className="flex flex-col h-full space-y-6">
+          {/* Residents */}
+          {residents.length > 0 && (
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                  <Users className="h-5 w-5" />
+                  Residents ({residents.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {familyUnit && (
                     <Link
-                      key={resident.id}
-                      href={`/t/${slug}/dashboard/neighbours/${resident.id}`}
-                      className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent transition-colors"
+                      href={`/t/${slug}/dashboard/families/${familyUnit.id}`}
+                      className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
                     >
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={resident.profile_picture_url || undefined} alt={resident.first_name} />
-                        <AvatarFallback className="bg-primary/10 text-primary">
-                          {resident.first_name?.[0]}
-                          {resident.last_name?.[0]}
+                      <Avatar className="h-14 w-14">
+                        <AvatarImage src={familyUnit.profile_picture_url || undefined} alt={familyUnit.name} />
+                        <AvatarFallback className="bg-amber-200 text-amber-900 font-semibold">
+                          {familyUnit.name
+                            ?.split(" ")
+                            .map((n: string) => n[0])
+                            .join("")
+                            .substring(0, 2)
+                            .toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">
-                          {resident.first_name} {resident.last_name}
+                      <div className="flex-1">
+                        <p className="text-base font-semibold text-amber-900">{familyUnit.name}</p>
+                        <p className="text-sm text-amber-700">
+                          {residents.length} member{residents.length !== 1 ? "s" : ""}
                         </p>
-                        <p className="text-sm text-muted-foreground">View profile →</p>
+                        <p className="text-sm text-amber-600 mt-1">View family profile →</p>
                       </div>
                     </Link>
-                  ))}
+                  )}
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {residents.map((resident: any) => (
+                      <Link
+                        key={resident.id}
+                        href={`/t/${slug}/dashboard/neighbours/${resident.id}`}
+                        className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent transition-colors"
+                      >
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={resident.profile_picture_url || undefined} alt={resident.first_name} />
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {resident.first_name?.[0]}
+                            {resident.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">
+                            {resident.first_name} {resident.last_name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">View profile →</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )
-      }
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Pets */}
-      {
-        pets.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                <PawPrint className="h-5 w-5" />
-                Family Pets ({pets.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {pets.map((pet: any) => {
-                  const petInitials = pet.name
-                    .split(" ")
-                    .map((word: string) => word[0])
-                    .join("")
-                    .toUpperCase()
-                    .slice(0, 2)
+          {/* Pets */}
+          {pets.length > 0 && (
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                  <PawPrint className="h-5 w-5" />
+                  Family Pets ({pets.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {pets.map((pet: any) => {
+                    const petInitials = pet.name
+                      .split(" ")
+                      .map((word: string) => word[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2)
 
-                  return (
-                    <div key={pet.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={pet.profile_picture_url || "/placeholder.svg"} alt={pet.name} />
-                        <AvatarFallback className="bg-pink-100 text-pink-700">{petInitials}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">{pet.name}</p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {pet.species}
-                          {pet.breed && ` • ${pet.breed}`}
-                        </p>
+                    return (
+                      <div key={pet.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={pet.profile_picture_url || "/placeholder.svg"} alt={pet.name} />
+                          <AvatarFallback className="bg-pink-100 text-pink-700">{petInitials}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold truncate">{pet.name}</p>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {pet.species}
+                            {pet.breed && ` • ${pet.breed}`}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )
-      }
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Row 3: Exchange Listings (full width) */}
+        <div className="md:col-span-2">
+          {exchangeEnabled && locationListings.length > 0 && (
+            <div id="exchange">
+              <LocationExchangeSection
+                listings={locationListings}
+                slug={slug}
+                userId={user.id}
+                tenantId={currentUser.tenant_id}
+                locationName={location.name}
+                locationId={location.id}
+                canCreateListings={canCreateListings}
+                categories={categories}
+                neighborhoods={neighborhoods}
+                locations={locations}
+              />
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Events Section */}
       {
@@ -580,36 +630,6 @@ export default async function LocationDetailsPage({ params }: { params: Promise<
         )
       }
 
-      {/* Exchange Section */}
-      {
-        exchangeEnabled && locationListings.length > 0 && (
-          <div id="exchange">
-            <LocationExchangeSection
-              listings={locationListings}
-              slug={slug}
-              userId={user.id}
-              tenantId={currentUser.tenant_id}
-              locationName={location.name}
-              locationId={location.id}
-              canCreateListings={canCreateListings}
-              categories={categories}
-              neighborhoods={neighborhoods}
-              locations={locations}
-            />
-          </div>
-        )
-      }
-
-      {/* Photo Gallery */}
-      {
-        galleryPhotos.length > 1 && (
-          <PhotoGallerySection
-            photos={galleryPhotos}
-            heroPhoto={location.hero_photo}
-            locationName={location.name}
-          />
-        )
-      }
-    </div >
+      </div>
   )
 }

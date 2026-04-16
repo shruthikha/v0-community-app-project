@@ -3,21 +3,57 @@ import { createClient } from "@/lib/supabase/server"
 import { sanitizeFilename } from "@/lib/upload-security"
 import { v4 as uuidv4 } from "uuid"
 
+// Storage bucket names
+export const STORAGE_BUCKETS = {
+    PHOTOS: "photos",
+    DOCUMENTS: "documents",
+} as const
+
+// Max file size: 2MB
+export const MAX_FILE_SIZE = 2 * 1024 * 1024
+
+// Max photos per lot
+export const MAX_PHOTOS_PER_LOT = 10
+
 /**
  * Upload a file to Supabase Storage
  * @param file File object to upload
  * @param bucket Storage bucket name (default: "photos")
+ * @param options Optional parameters: tenantId, lotId for path format
  * @returns Object containing public URL and other metadata
  */
-export async function uploadFile(file: File, bucket: "photos" | "documents" = "photos") {
+export async function uploadFile(
+    file: File,
+    bucket: "photos" | "documents" = "photos",
+    options?: {
+        tenantId?: string
+        lotId?: string
+    }
+) {
+    // Validate file size before upload
+    if (file.size > MAX_FILE_SIZE) {
+        throw new Error(`File exceeds the ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`)
+    }
+
     const supabase = await createClient()
 
     const filename = sanitizeFilename(file.name)
     const uniqueId = uuidv4()
 
-    // Create a clean path: year/month/uuid-filename
+    // Create path based on options
     const date = new Date()
-    const path = `${date.getFullYear()}/${date.getMonth() + 1}/${uniqueId}-${filename}`
+    let path: string
+
+    if (options?.tenantId && options?.lotId) {
+        // New path format: {tenantId}/lots/{lotId}/{year}/{month}/{uuid-filename}
+        path = `${options.tenantId}/lots/${options.lotId}/${date.getFullYear()}/${date.getMonth() + 1}/${uniqueId}-${filename}`
+    } else if (options?.tenantId) {
+        // Tenant-only path: {tenantId}/{year}/{month}/{uuid-filename}
+        path = `${options.tenantId}/${date.getFullYear()}/${date.getMonth() + 1}/${uniqueId}-${filename}`
+    } else {
+        // Legacy path for backward compatibility: year/month/uuid-filename
+        path = `${date.getFullYear()}/${date.getMonth() + 1}/${uniqueId}-${filename}`
+    }
 
     const { data, error } = await supabase
         .storage

@@ -74,7 +74,7 @@ Via GitHub MCP, update the issue label from `ready-for-dev` to `in-progress`. Th
 
 ### Create or load build log
 
-Build log path: `knowledge/raw/build-logs/{issue}_{slug}.md`
+Build log path: `knowledge/raw/build-logs/log_{yyyy_mm_dd}_{issue_slug}.md` (e.g., `log_2026_04_13_66_lot_images.md`)
 
 If it exists, append a new section with today's date. If not, create it using the format from the `workflow-methodology` skill.
 
@@ -114,8 +114,37 @@ For each task in the current group:
    - Server actions, API, server logic → `@backend-specialist`
    - React components, UI, styling → `@frontend-specialist`
 
-   Pass: task description from the plan, file targets, wiki patterns to reference, the build log path.
+   Pass: task description from the plan, file targets, wiki patterns to reference
+   Pass: build log path: `knowledge/raw/build-logs/log_{yyyy_mm_dd}_{issue_slug}.md`
    Pass: Before each task, load and follow the assume-nothing skill. Verify the file targets in the plan match actual codebase state.
+   **REQUIRED**: After completing tasks, Run SELF-VERIFICATION (see below), then update the build log
+
+#### Self-Verification Protocol
+
+**For DB/API/Backend tasks (specialist can verify):**
+1. Run verification queries/scripts directly (e.g., SQL queries, API tests)
+2. Report verification results in output: "Verified: X passed, Y failed because..."
+3. If verification fails → fix and re-verify (1 iteration included)
+4. If still fails after 1 fix attempt → report failure, orchestrator will escalate
+
+**For UI/Logic tasks (user must test):**
+1. In the dispatch output, include clear "What to test" section with:
+   - URL/route to visit
+   - Steps to reproduce
+   - Expected behavior
+   - Edge cases to try
+2. Do NOT run manual UI testing — prompt user at checkpoint instead
+3. Note in output: "Checkpoint N: USER TEST REQUIRED"
+
+**Example dispatch output:**
+```
+### What to test (USER ACTION REQUIRED)
+1. Visit: http://localhost:3000/t/ecovilla-san-mateo/dashboard/settings/family
+2. Click "Add Photo" button
+3. Upload test.jpg (2MB)
+4. Verify: [ ] Photo appears in gallery
+5. Edge cases: [ ] Upload 11th photo (should reject)
+```
 
 2. **Run quality gate** after the specialist completes:
    ```bash
@@ -269,7 +298,7 @@ gh pr create --draft \
 {Manual checkpoints completed, automated tests added}
 
 ## Build Log
-\`knowledge/raw/build-logs/{issue}_{slug}.md\`
+\`knowledge/raw/build-logs/log_{yyyy_mm_dd}_{issue_slug}.md\`
 
 ## Notes
 - {decisions worth highlighting}

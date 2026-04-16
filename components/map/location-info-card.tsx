@@ -100,7 +100,7 @@ export function LocationInfoCard({
   })
 
   const [neighborhood, setNeighborhood] = useState<{ id: string; name: string } | null>(null)
-  const [lot, setLot] = useState<{ id: string; lot_number: string } | null>(null)
+  const [lot, setLot] = useState<{ id: string; lot_number: string; photos?: string[]; hero_photo?: string | null } | null>(null)
   const [residents, setResidents] = useState<Resident[]>([])
   const [familyUnit, setFamilyUnit] = useState<FamilyUnit | null>(null)
   const [pets, setPets] = useState<Pet[]>([])
@@ -180,9 +180,9 @@ export function LocationInfoCard({
 
       if (location.lot_id) {
         console.log("[v0] Fetching lot for id:", location.lot_id)
-        const { data } = await supabase.from("lots").select("id, lot_number").eq("id", location.lot_id).single()
+        const { data } = await supabase.from("lots").select("id, lot_number, photos, hero_photo").eq("id", location.lot_id).single()
         if (data) {
-          console.log("[v0] Lot found:", data.lot_number)
+          console.log("[v0] Lot found:", data.lot_number, "photos:", data.photos?.length || 0)
           setLot(data)
         }
       }
@@ -416,6 +416,23 @@ export function LocationInfoCard({
                 onClick={() => {
                   if (location.photos && location.photos.length > 0) {
                     window.open(location.photos[0], "_blank")
+                  }
+                }}
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+            </div>
+          )}
+
+          {/* Lot photos display - only show for lot type when photos exist */}
+          {location.type === "lot" && lot?.photos && lot.photos.length > 0 && (
+            <div className="relative w-full rounded-lg overflow-hidden border bg-muted cursor-pointer group -mt-1 mb-3">
+              <img
+                src={lot.photos[0] || "/placeholder.svg"}
+                alt={`${location.name} home`}
+                className="w-full aspect-[2/1] object-cover hover:scale-105 transition-transform"
+                onClick={() => {
+                  if (lot?.photos && lot.photos.length > 0) {
+                    window.open(lot.photos[0], "_blank")
                   }
                 }}
               />
@@ -701,6 +718,23 @@ export function LocationInfoCard({
               onClick={() => {
                 if (location.photos && location.photos.length > 0) {
                   window.open(location.photos[0], "_blank")
+                }
+              }}
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+          </div>
+        )}
+
+        {/* Lot photos display - only show for lot type when photos exist */}
+        {location.type === "lot" && lot?.photos && lot.photos.length > 0 && (
+          <div className="relative w-full rounded-lg overflow-hidden border bg-muted cursor-pointer group -mt-1 mb-3">
+            <img
+              src={lot.photos[0] || "/placeholder.svg"}
+              alt={`${location.name} home`}
+              className="w-full aspect-[2/1] object-cover hover:scale-105 transition-transform"
+              onClick={() => {
+                if (lot?.photos && lot.photos.length > 0) {
+                  window.open(lot.photos[0], "_blank")
                 }
               }}
             />

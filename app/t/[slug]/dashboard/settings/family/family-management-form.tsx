@@ -34,9 +34,17 @@ interface FamilyManagementFormProps {
   relationships: any[]
   pets: any[]
   lotResidents: any[]
+  lotData: LotData
   petsEnabled: boolean
   tenantSlug: string
   isPrimaryContact: boolean
+}
+
+type LotData = {
+  id: string | null
+  lot_number: string | null
+  photos: string[]
+  hero_photo: string | null
 }
 
 const RELATIONSHIP_TYPES = [
@@ -56,6 +64,7 @@ export function FamilyManagementForm({
   relationships: initialRelationships,
   pets: initialPets,
   lotResidents,
+  lotData,
   petsEnabled,
   tenantSlug,
   isPrimaryContact,
@@ -90,6 +99,12 @@ export function FamilyManagementForm({
     heroPhoto: familyUnit?.hero_photo || familyUnit?.profile_picture_url || null,
     bannerImage: familyUnit?.banner_image_url || null,
   })
+  const [lotDataState, setLotDataState] = useState({
+    id: lotData?.id || null,
+    lotNumber: lotData?.lot_number || "",
+    photos: lotData?.photos || [],
+    heroPhoto: lotData?.hero_photo || null,
+  })
   const [accessRequestDialog, setAccessRequestDialog] = useState<{
     open: boolean
     memberId: string | null
@@ -118,6 +133,16 @@ export function FamilyManagementForm({
       bannerImage: familyUnit?.banner_image_url || null,
     })
   }, [initialFamilyMembers, initialRelationships, initialPets, familyUnit])
+
+  // Sync lot data when it changes
+  useEffect(() => {
+    setLotDataState({
+      id: lotData?.id ?? null,
+      lotNumber: lotData?.lot_number ?? "",
+      photos: lotData?.photos ?? [],
+      heroPhoto: lotData?.hero_photo ?? null,
+    })
+  }, [lotData])
 
   const handleBannerChange = async (url: string | null) => {
     setFamilyProfile(prev => ({ ...prev, bannerImage: url }))
@@ -374,8 +399,8 @@ export function FamilyManagementForm({
 
     const supabase = createClient()
     try {
-      const updateData: any = {
-        photos: photos,
+      const updateData: { photos: string[]; hero_photo?: string | null; profile_picture_url?: string | null } = {
+        photos,
       }
 
       if (familyProfile.heroPhoto && !photos.includes(familyProfile.heroPhoto)) {
@@ -429,6 +454,75 @@ export function FamilyManagementForm({
     }
   }
 
+  // ===== HANDLERS FOR LOT PHOTOS =====
+  const handleLotPhotosChange = async (photos: string[]) => {
+    if (!lotDataState.id) return
+
+    const previousPhotos = lotDataState.photos
+    const previousHero = lotDataState.heroPhoto
+
+    setLotDataState(prev => ({ ...prev, photos }))
+
+    const supabase = createClient()
+    try {
+      const updateData: { photos: string[]; hero_photo?: string | null } = { photos }
+
+      // If current hero was deleted, set first photo as new hero
+      if (lotDataState.heroPhoto && !photos.includes(lotDataState.heroPhoto)) {
+        updateData.hero_photo = photos[0] || null
+        setLotDataState(prev => ({ ...prev, photos, heroPhoto: photos[0] || null }))
+      }
+
+      const { error } = await supabase.from("lots").update(updateData).eq("id", lotDataState.id)
+
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: "Home photos updated successfully",
+      })
+      router.refresh()
+    } catch (error) {
+      console.error("[v0] Error saving lot photos:", error)
+      toast({
+        title: "Save failed",
+        description: "Failed to save photos. Please try again.",
+        variant: "destructive",
+      })
+      // Revert state on error
+      setLotDataState(prev => ({ ...prev, photos: previousPhotos, heroPhoto: previousHero }))
+    }
+  }
+
+  const handleLotHeroPhotoChange = async (heroPhoto: string | null) => {
+    if (!lotDataState.id) return
+
+    const previousHero = lotDataState.heroPhoto
+
+    setLotDataState(prev => ({ ...prev, heroPhoto }))
+
+    const supabase = createClient()
+    try {
+      const { error } = await supabase
+        .from("lots")
+        .update({ hero_photo: heroPhoto })
+        .eq("id", lotDataState.id)
+
+      if (error) throw error
+
+      router.refresh()
+    } catch (error) {
+      console.error("[v0] Error saving lot hero photo:", error)
+      toast({
+        title: "Save failed",
+        description: "Failed to save hero photo. Please try again.",
+        variant: "destructive",
+      })
+      // Revert state on error
+      setLotDataState(prev => ({ ...prev, heroPhoto: previousHero }))
+    }
+  }
+
   const handlePetPhotosChange = async (petId: string, photos: string[]) => {
     const pet = pets.find((p) => p.id === petId)
     const currentHeroPhoto = pet?.hero_photo || pet?.profile_picture_url || null
@@ -447,8 +541,8 @@ export function FamilyManagementForm({
 
     const supabase = createClient()
     try {
-      const updateData: any = {
-        photos: photos,
+      const updateData: { photos: string[]; hero_photo?: string | null; profile_picture_url?: string | null } = {
+        photos,
       }
 
       // If hero photo was deleted, set first photo as new hero
@@ -592,14 +686,34 @@ export function FamilyManagementForm({
     }
   }
 
+  // Home Photos - Available to ANY resident with a lot (NOT family-dependent)
+  const lotPhotosSection = lotDataState.id && (
+    <CollapsibleCard title="Home Photos" description="Share photos of your home" icon={Home} defaultOpen={false}>
+      <PhotoManager
+        photos={lotDataState.photos}
+        heroPhoto={lotDataState.heroPhoto}
+        onPhotosChange={handleLotPhotosChange}
+        onHeroPhotoChange={handleLotHeroPhotoChange}
+        maxPhotos={10}
+        entityType="lot"
+      />
+    </CollapsibleCard>
+  )
+
+  // Early return only blocks family-dependent UI, NOT lot photos
   if (!familyUnit) {
     return (
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          No family unit assigned yet. Contact your administrator to set up your family.
-        </AlertDescription>
-      </Alert>
+      <div className="space-y-6">
+        {/* Lot photos available even without family unit */}
+        {lotPhotosSection}
+
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            No family unit assigned yet. Contact your administrator to set up your family.
+          </AlertDescription>
+        </Alert>
+      </div>
     )
   }
 
@@ -658,6 +772,9 @@ export function FamilyManagementForm({
               entityType="family"
             />
           </CollapsibleCard>
+
+          {/* Lot Photos - Available to any resident with a lot (not family-dependent) */}
+          {lotPhotosSection}
         </div>
 
         {/* RIGHT COLUMN: Members & Pets */}

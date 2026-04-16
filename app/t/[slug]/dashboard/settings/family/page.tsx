@@ -90,6 +90,7 @@ export default async function FamilySettingsPage({
 
   const validLotId = resident.lot_id && resident.lot_id !== "" ? resident.lot_id : null
   let lotResidents: any[] = []
+  let lotData: any = null
 
   if (validLotId) {
     const { data: lotResidentsData } = await supabase
@@ -104,6 +105,15 @@ export default async function FamilySettingsPage({
       .order("first_name")
 
     lotResidents = lotResidentsData || []
+
+    // Fetch lot data including photos
+    const { data: lotDataResult } = await supabase
+      .from("lots")
+      .select("id, lot_number, photos, hero_photo")
+      .eq("id", validLotId)
+      .single()
+
+    lotData = lotDataResult
   }
 
   return (
@@ -115,6 +125,7 @@ export default async function FamilySettingsPage({
         relationships={relationships}
         pets={pets}
         lotResidents={lotResidents}
+        lotData={lotData}
         petsEnabled={tenant?.features?.pets || false}
         tenantSlug={slug}
         isPrimaryContact={isPrimaryContact}

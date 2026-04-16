@@ -18,7 +18,7 @@ interface PhotoManagerProps {
   onPhotosChange: (photos: string[]) => void
   onHeroPhotoChange: (heroPhoto: string | null) => void
   maxPhotos?: number
-  entityType?: "location" | "family" | "user" | "pet" | "neighborhood" | "event"
+  entityType?: "location" | "family" | "user" | "pet" | "neighborhood" | "event" | "lot"
 }
 
 export function PhotoManager({
@@ -109,6 +109,17 @@ export function PhotoManager({
     setDeleting(urlToRemove)
 
     try {
+      // Call the DELETE endpoint to remove from storage
+      const deleteUrl = `/api/upload/delete?url=${encodeURIComponent(urlToRemove)}`
+      const response = await fetch(deleteUrl, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to delete photo from storage")
+      }
+
       const newPhotos = photos.filter((url) => url !== urlToRemove)
 
       onPhotosChange(newPhotos)
@@ -149,6 +160,7 @@ export function PhotoManager({
       pet: "pet",
       neighborhood: "neighborhood",
       event: "event",
+      lot: "home",
     }
     return labels[entityType] || "item"
   }

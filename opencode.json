@@ -5,7 +5,7 @@
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
       "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_placeholder"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_PAT}"
       }
     },
     "filesystem": {
@@ -23,9 +23,7 @@
     "supabase": {
       "type": "remote",
       "url": "https://mcp.supabase.com/mcp",
-      "headers": {
-        "Authorization": "Bearer sbp_69671744aca25750d5dcb02fcc5a27da4bdf1597"
-      }
+      "oauth": {}
     },
     "context7": {
       "type": "remote",

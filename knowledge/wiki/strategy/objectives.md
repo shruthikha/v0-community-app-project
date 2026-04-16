@@ -1,8 +1,8 @@
 ---
 type: strategy
 status: draft
-period: YYYY-Qx
-created: YYYY-MM-DD
+period: 2026-Q2
+created: 2026-04-14
 review-cadence: at period end
 ---
 
@@ -18,6 +18,8 @@ review-cadence: at period end
 > 3. Each objective is an OUTCOME, not an output
 > 4. Each objective is measurable, even imperfectly
 > 5. Each objective connects to the vision
+>
+> 
 
 ---
 

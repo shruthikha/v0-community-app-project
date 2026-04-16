@@ -1,13 +1,39 @@
 import { uploadFile } from "@/lib/supabase-storage"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
     const file = formData.get("file") as File
+    const folder = formData.get("folder") as string | null
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
+    }
+
+    // Get user context for lot-based uploads
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    let tenantId: string | undefined
+    let lotId: string | undefined
+
+    // If user is authenticated, get their tenant_id and lot_id
+    if (user) {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("tenant_id, lot_id")
+        .eq("id", user.id)
+        .single()
+
+      if (userData) {
+        tenantId = userData.tenant_id
+        // Only use lot_id if it's specifically a lot photo upload
+        if (folder === "lot" || folder === "family-members") {
+          lotId = userData.lot_id
+        }
+      }
     }
 
     // Validate file type
@@ -39,7 +65,8 @@ export async function POST(request: Request) {
     // We can infer bucket from type or formData later
     const bucket = isDoc ? "documents" : "photos"
 
-    const result = await uploadFile(file, bucket)
+    // Pass tenantId and lotId for proper RLS path isolation
+    const result = await uploadFile(file, bucket, { tenantId, lotId })
 
     return NextResponse.json(result)
   } catch (error: any) {

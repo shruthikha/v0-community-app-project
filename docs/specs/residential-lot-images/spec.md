@@ -24,6 +24,7 @@ issue: GitHub #66
 - Map sidepanel integration — show lot photos in LocationInfoCard
 - Tenant isolation — Virtual Isolation: new uploads get tenant_id prefix, legacy files work via RLS policy
 - Wire up DELETE endpoint in PhotoManager
+- Lot details page (`/locations/[id]`) shows lot photos
 
 **Out of Scope:**
 - Advanced gallery features (zoom, slideshow)

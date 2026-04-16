@@ -10,14 +10,15 @@ interface PhotoGallerySectionProps {
     photos: string[]
     heroPhoto: string | null
     locationName: string
+    className?: string
 }
 
-export function PhotoGallerySection({ photos, heroPhoto, locationName }: PhotoGallerySectionProps) {
-    const [isOpen, setIsOpen] = useState(false)
+export function PhotoGallerySection({ photos, heroPhoto, locationName, className }: PhotoGallerySectionProps) {
+    const [isOpen, setIsOpen] = useState(true)
 
     return (
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-            <Card>
+            <Card className={className}>
                 <CollapsibleTrigger asChild>
                     <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
                         <div className="flex items-center justify-between w-full">

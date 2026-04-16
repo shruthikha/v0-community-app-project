@@ -52,8 +52,9 @@ Extend image upload to residential lots, allowing residents to upload and displa
 |---|------|------|------------|-------|--------------|
 | 9 | Add PhotoManager to Family settings form with lot data | Frontend | @frontend-specialist | `app/t/[slug]/dashboard/settings/family/family-management-form.tsx` | tasks 1, 7 |
 | 10 | Update LocationInfoCard to fetch and display lot photos | Frontend | @frontend-specialist | `components/map/location-info-card.tsx` | task 1 |
+| 11 | Update lot details page to show lot photos | Frontend | @frontend-specialist | `app/t/[slug]/dashboard/locations/[id]/page.tsx` | task 1 |
 
-**Verification:** Lot photos visible in Family settings and map sidepanel
+**Verification:** Lot photos visible in Family settings, map sidepanel, and lot details page
 
 ---
 
@@ -133,7 +134,7 @@ Extend image upload to residential lots, allowing residents to upload and displa
 
 ### Checkpoint 4: UI Integration
 
-**Tasks in this group:** 9, 10
+**Tasks in this group:** 9, 10, 11
 
 **What to test:**
 1. Upload photos in Family settings
@@ -148,7 +149,7 @@ Extend image upload to residential lots, allowing residents to upload and displa
 
 **Edge cases:**
 - [ ] Empty lot shows placeholder "No photos yet"
-- [ ] Large file (>10MB) rejected
+- [ ] Large file (>2MB) rejected
 
 **What "pass" looks like:** Full CRUD workflow succeeds
 

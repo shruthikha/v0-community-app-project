@@ -67,7 +67,109 @@ Load and follow the `systematic-debugging` skill.
 
 ---
 
-## Phase 2: Migration Safety
+## Phase 2: Initial Code Review
+
+### CodeRabbit findings
+
+Load and follow the `coderabbit-ingest` skill.
+
+Check CodeRabbit comments on the PR via GitHub MCP. For each finding:
+- Fixed in latest commit, or
+- Acknowledged with reason
+
+### Categorize findings
+
+If CodeRabbit flags items that are:
+- Not fixed in latest commit, AND
+- Not acknowledged by user
+
+→ Note the issue number, severity, and file in the unaddressed findings list:
+| # | Issue | File | Severity | Status |
+|---|------|------|----------|--------|
+| 1 | {issue title} | {file} | Critical/Major/Minor | Unfixed |
+
+**Proceed to Phase 3 for the fix loop.**
+
+---
+
+## Phase 3: CodeRabbit Fix Loop
+
+**Iterate until all Critical and Major findings are addressed.**
+
+### For each iteration:
+
+1. **Update TodoWrite** with current iteration number
+2. **Dispatch to specialist** based on issue type:
+   - Schema/RLS/database → @database-architect
+   - Security → @security-auditor
+   - Backend logic → @backend-specialist
+   - Frontend/UI → @frontend-specialist
+
+3. **Run Phase 1 checks** after fixes:
+   ```bash
+   npm run lint
+   npm run type-check
+   npm run test
+   npm run build
+   ```
+
+4. **Push fixes** with descriptive commit:
+   ```bash
+   git add {files}
+   git commit -m "fix: CodeRabbit {issue} - {brief description}"
+   git push
+   ```
+
+5. **Wait for CodeRabbit** to post new review
+
+6. **Comment on PR** summarizing the fix round:
+   ```markdown
+   ## CodeRabbit Fix Round #{n}
+
+   Addressed:
+   - [#{issue}] {title} → Fixed in {commit}
+
+   Remaining: {count} Critical, {count} Major
+   ```
+
+7. **Update build log** with iteration summary:
+   ```markdown
+   ### CodeRabbit Fix Round {n} — {date}
+
+   | Issue | File | Fix | Commit |
+   |-------|------|-----|--------|
+   | {issue} | {file} | {description} | {sha} |
+
+   **Result:** Pass/Fail
+   ```
+
+### Loop condition
+
+- Continue if: **Critical or Major** issues remain unfixed
+- Exit if: All Critical/Major issues addressed, OR user says "proceed despite remaining"
+
+### Exit criteria
+
+- All Critical/Major issues addressed, OR
+- User explicitly acknowledges remaining and says "proceed"
+
+**After exiting Phase 3, proceed to Phase 4.**
+
+---
+
+## Phase 4: Security Check
+
+**If the PR touches auth, RLS, sensitive data, payment flows, or user PII**, dispatch to `@security-auditor` via Task tool.
+
+Pass: the PR diff scope, files touched, and specific concerns to validate (e.g., "verify RLS policies on new tables", "check input validation in new server action").
+
+The security-auditor returns findings. Address blockers before proceeding to Phase 5.
+
+**Skip this dispatch** for non-sensitive PRs (UI-only changes, refactoring, doc updates).
+
+---
+
+## Phase 5: Migration Safety
 
 **Only if there are migrations in the PR.**
 
@@ -83,29 +185,7 @@ Load and follow the `migration-safety` skill.
 
 ---
 
-## Phase 3: Security & Code Review
-
-### CodeRabbit findings
-
-Load and follow the `coderabbit-ingest` skill.
-
-Check CodeRabbit comments on the PR via GitHub MCP. For each finding:
-- Fixed in latest commit, or
-- Acknowledged with reason
-
-### Security check
-
-**If the PR touches auth, RLS, sensitive data, payment flows, or user PII**, dispatch to `@security-auditor` via Task tool.
-
-Pass: the PR diff scope, files touched, and specific concerns to validate (e.g., "verify RLS policies on new tables", "check input validation in new server action").
-
-The security-auditor returns findings. Address blockers before proceeding to Phase 4.
-
-**Skip this dispatch** for non-sensitive PRs (UI-only changes, refactoring, doc updates).
-
----
-
-## Phase 4: Manual Smoke Test
+## Phase 6: Manual Smoke Test
 
 Before merging, the user verifies the deployed branch end-to-end.
 
@@ -150,7 +230,7 @@ The debug loop here can dispatch to any specialist depending on what failed — 
 
 ---
 
-## Phase 5: Release Notes
+## Phase 7: Release Notes
 
 Load and follow the `release-notes-draft` skill. It produces three outputs:
 
@@ -164,7 +244,7 @@ For user-facing content (outputs 2 and 3), load and follow the `tone-of-voice-co
 
 ---
 
-## Phase 6: Merge
+## Phase 8: Merge
 
 Load and follow the `git-workflow` skill.
 
@@ -172,9 +252,10 @@ Load and follow the `git-workflow` skill.
 
 - [ ] All tests pass
 - [ ] Migration verified against staging (if applicable)
-- [ ] CodeRabbit addressed
-- [ ] Security review complete (if applicable)
-- [ ] Manual smoke test passed
+- [ ] CodeRabbit addressed (Phase 3 complete)
+- [ ] Security review complete (Phase 4, if applicable)
+- [ ] Migration verified against staging (Phase 5, if applicable)
+- [ ] Manual smoke test passed (Phase 6)
 - [ ] Release notes drafted
 - [ ] PR body has `Closes #{issue}`
 - [ ] User explicitly approved merge
@@ -218,7 +299,7 @@ git push origin v{version}
 
 ---
 
-## Phase 7: Closeout
+## Phase 9: Closeout
 
 ### Update issue (post-merge verification)
 
