@@ -631,6 +631,27 @@ export function MapboxFullViewer({
             const endTime = startTime + durationMs
             return endTime > now // Only show if hasn't expired
         })
+       const checkinMap = new Map<string, CheckIn[]>()
+        
+        liveCheckIns.forEach((ci: any) => {
+            let ciCoords = null
+        
+            if (ci.location_type === "community_location") {
+                ciCoords = ci.location?.coordinates
+            } else if (ci.location_type === "custom_temporary") {
+                ciCoords = ci.custom_location_coordinates
+            }
+        
+            if (!ciCoords) return
+        
+            const key = `${Math.round(ciCoords.lat * 10000)}-${Math.round(ciCoords.lng * 10000)}`
+        
+            if (!checkinMap.has(key)) {
+                checkinMap.set(key, [])
+            }
+        
+            checkinMap.get(key)!.push(ci)
+        })
 
         return liveCheckIns
             .map((checkIn: any) => {
@@ -649,18 +670,9 @@ export function MapboxFullViewer({
                     return null
                 }
 
-                // Find all check-ins at roughly the same location
-                const sameLocation = liveCheckIns.filter((ci: any) => {
-                    let ciCoords = null
-                    if (ci.location_type === "community_location") {
-                        ciCoords = ci.location?.coordinates
-                    } else if (ci.location_type === "custom_temporary") {
-                        ciCoords = ci.custom_location_coordinates
-                    }
-                    if (!ciCoords) return false
-                    return Math.abs(ciCoords.lat - coords.lat) < 0.0001 && Math.abs(ciCoords.lng - coords.lng) < 0.0001
-                })
-
+                const key = `${Math.round(coords.lat * 10000)}-${Math.round(coords.lng * 10000)}`
+                const sameLocation = checkinMap.get(key) || []
+                                
                 // If only one check-in at this location, use exact coordinates
                 if (sameLocation.length === 1) {
                     return {
