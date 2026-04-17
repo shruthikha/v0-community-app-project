@@ -468,51 +468,116 @@ export function MapboxFullViewer({
     const [showPaths, setShowPaths] = useState(true)
     const [showCheckIns, setShowCheckIns] = useState(true)
 
-    // Prepare GeoJSON for boundary
-    const boundaryGeoJSON = useMemo(() => {
-        const boundary = locations.find((loc) => loc.type === "boundary")
-        if (!boundary?.boundary_coordinates) return null
+    const {
+    boundaryGeoJSON,
+    lotsGeoJSON,
+    facilitiesGeoJSON,
+    streetsGeoJSON,
+    pathsGeoJSON,
+} = useMemo(() => {
+    let boundary = null
 
-        return {
-            type: "Feature" as const,
-            geometry: {
-                type: "Polygon" as const,
-                coordinates: [boundary.boundary_coordinates.map(([lat, lng]) => [lng, lat])],
-            },
-            properties: {
-                id: boundary.id,
-                name: boundary.name,
-                color: boundary.color,
-            },
-        }
-    }, [locations])
+    const lots: any[] = []
+    const facilities: any[] = []
+    const streets: any[] = []
+    const paths: any[] = []
 
-    // Prepare GeoJSON for lots
-    const lotsGeoJSON = useMemo(() => {
-        const features = locations
-            .filter((loc) => loc.type === "lot" && loc.path_coordinates && loc.path_coordinates.length > 0)
-            .map((lot) => ({
-                type: "Feature" as const,
+    for (const loc of locations) {
+        // Boundary
+        if (loc.type === "boundary" && loc.boundary_coordinates) {
+            boundary = {
+                type: "Feature",
                 geometry: {
-                    type: "Polygon" as const,
-                    // path_coordinates is where lot boundaries are stored
-                    // Convert from [lat, lng] to [lng, lat] for Mapbox
-                    coordinates: [lot.path_coordinates!.map(([lat, lng]) => [lng, lat])],
+                    type: "Polygon",
+                    coordinates: [loc.boundary_coordinates.map(([lat, lng]) => [lng, lat])],
                 },
                 properties: {
-                    id: lot.id,
-                    name: lot.name,
-                    neighborhood: lot.neighborhood?.name,
-                    occupancy: (lot.residents && lot.residents.length > 0) ? "occupied" : "vacant",
-                    color: lot.color,
+                    id: loc.id,
+                    name: loc.name,
+                    color: loc.color,
                 },
-            }))
-
-        return {
-            type: "FeatureCollection" as const,
-            features,
+            }
         }
-    }, [locations])
+
+        // Lots
+        else if (loc.type === "lot" && loc.path_coordinates?.length) {
+            lots.push({
+                type: "Feature",
+                geometry: {
+                    type: "Polygon",
+                    coordinates: [loc.path_coordinates.map(([lat, lng]) => [lng, lat])],
+                },
+                properties: {
+                    id: loc.id,
+                    name: loc.name,
+                    neighborhood: loc.neighborhood?.name,
+                    occupancy: loc.residents?.length > 0 ? "occupied" : "vacant",
+                    color: loc.color,
+                },
+            })
+        }
+
+        // Facilities
+        else if (loc.type === "facility" && loc.path_coordinates?.length) {
+            facilities.push({
+                type: "Feature",
+                geometry: {
+                    type: "Polygon",
+                    coordinates: [loc.path_coordinates.map(([lat, lng]) => [lng, lat])],
+                },
+                properties: {
+                    id: loc.id,
+                    name: loc.name,
+                    facility_type: loc.facility_type,
+                    icon: loc.icon || "🏛️",
+                    color: loc.color,
+                },
+            })
+        }
+
+        // Streets
+        else if (loc.type === "public_street" && loc.path_coordinates) {
+            streets.push({
+                type: "Feature",
+                geometry: {
+                    type: "LineString",
+                    coordinates: loc.path_coordinates.map(([lat, lng]) => [lng, lat]),
+                },
+                properties: {
+                    id: loc.id,
+                    name: loc.name,
+                    color: loc.color,
+                },
+            })
+        }
+
+        // Paths
+        else if (loc.type === "walking_path" && loc.path_coordinates) {
+            paths.push({
+                type: "Feature",
+                geometry: {
+                    type: "LineString",
+                    coordinates: loc.path_coordinates.map(([lat, lng]) => [lng, lat]),
+                },
+                properties: {
+                    id: loc.id,
+                    name: loc.name,
+                    color: loc.color,
+                },
+            })
+        }
+    }
+
+    return {
+        boundaryGeoJSON: boundary
+            ? { type: "FeatureCollection", features: [boundary] }
+            : null,
+        lotsGeoJSON: { type: "FeatureCollection", features: lots },
+        facilitiesGeoJSON: { type: "FeatureCollection", features: facilities },
+        streetsGeoJSON: { type: "FeatureCollection", features: streets },
+        pathsGeoJSON: { type: "FeatureCollection", features: paths },
+    }
+}, [locations])
 
     // Calculate lot label positions using Turf (only for lots with proper names)
     const lotLabelsGeoJSON = useMemo(() => {
@@ -537,32 +602,6 @@ export function MapboxFullViewer({
         }
     }, [lotsGeoJSON])
 
-    // Prepare GeoJSON for facilities
-    const facilitiesGeoJSON = useMemo(() => {
-        const features = locations
-            .filter((loc) => loc.type === "facility" && loc.path_coordinates && loc.path_coordinates.length > 0)
-            .map((fac) => ({
-                type: "Feature" as const,
-                geometry: {
-                    type: "Polygon" as const,
-                    // Convert from [lat, lng] to [lng, lat] for Mapbox
-                    coordinates: [fac.path_coordinates!.map(([lat, lng]) => [lng, lat])],
-                },
-                properties: {
-                    id: fac.id,
-                    name: fac.name,
-                    facility_type: fac.facility_type,
-                    icon: fac.icon || "🏛️",
-                    color: fac.color,
-                },
-            }))
-
-        return {
-            type: "FeatureCollection" as const,
-            features,
-        }
-    }, [locations])
-
     // Calculate facility label positions using Turf
     const facilityLabelsGeoJSON = useMemo(() => {
         const features = facilitiesGeoJSON.features
@@ -580,56 +619,6 @@ export function MapboxFullViewer({
             features,
         }
     }, [facilitiesGeoJSON])
-
-    // Prepare GeoJSON for streets
-    const streetsGeoJSON = useMemo(() => {
-        const features = locations
-            .filter((loc) => loc.type === "public_street" && loc.path_coordinates)
-            .map((street) => ({
-                type: "Feature" as const,
-                geometry: {
-                    type: "LineString" as const,
-                    coordinates: street.path_coordinates!.map(([lat, lng]) => [lng, lat]),
-                },
-                properties: {
-                    id: street.id,
-                    name: street.name,
-                    color: street.color,
-                },
-            }))
-
-        return {
-            type: "FeatureCollection" as const,
-            features,
-        }
-    }, [locations])
-
-    // Prepare GeoJSON for walking paths
-    const pathsGeoJSON = useMemo(() => {
-        const features = locations
-            .filter((loc) => loc.type === "walking_path" && loc.path_coordinates)
-            .map((path) => ({
-                type: "Feature" as const,
-                geometry: {
-                    type: "LineString" as const,
-                    coordinates: path.path_coordinates!.map(([lat, lng]) => [lng, lat]),
-                },
-                properties: {
-                    id: path.id,
-                    name: path.name,
-                    color: path.color,
-                    path_length: path.path_length,
-                    elevation_gain: path.elevation_gain,
-                    path_difficulty: path.path_difficulty,
-                    path_surface: path.path_surface,
-                },
-            }))
-
-        return {
-            type: "FeatureCollection" as const,
-            features,
-        }
-    }, [locations])
 
     // Filter and distribute check-ins - only show LIVE/ACTIVE ones
     const distributedCheckIns = useMemo(() => {
